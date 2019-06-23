@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '0.0.1'
+from rest_meets_djongo import __version__
 
 
 def readme():
@@ -10,20 +10,28 @@ def readme():
 
 setup(
     name='rest_meets_djongo',
-    version=version,
-    packages=find_packages(),
-    url="https://gitlab.com/SomeoneInParticular/rest_meets_djongo",
-    author='Kalum J. Ost',
-    author_email='kalumost@gmail.com',
-    description="Allows for automatic serialization of Djongo fields w/ Django REST",
-    long_description=readme(),
-    long_description_content_type="test/",
-    license='MIT',
+    version=__version__,
+    packages=['rest_meets_djongo'],
+
     install_requires=[
         'Django',
-        'djangorestframework',
+        'djangorestframework<4',
         'djongo',
     ],
+
+    test_suite='tests',
+    test_requires=['pytest'],
+
+    author='Kalum J. Ost',
+    author_email='kalumost@gmail.com',
+    description=(
+        "Allows for automatic serialization of Djongo fields w/ Django REST"
+    ),
+    long_description=readme(),
+    keywords="mongodb djongo rest_framework rest apis fields",
+    url="https://gitlab.com/SomeoneInParticular/rest_meets_djongo",
+    long_description_content_type="text/markdown",
+    license='MIT',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
