@@ -5,7 +5,7 @@ test_objectidfield
 Tests DRF serialization for Djongo ObjectID type fields
 """
 
-from . import test_settings
+from tests import test_settings
 
 from bson import ObjectId
 from rest_framework.exceptions import ValidationError

@@ -19,6 +19,8 @@ setup(
         'djongo',
     ],
 
+
+    setup_requires=['pytest-runner'],
     test_suite='tests',
     test_requires=['pytest'],
 
