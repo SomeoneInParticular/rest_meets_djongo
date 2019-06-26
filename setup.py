@@ -22,7 +22,7 @@ setup(
 
     setup_requires=['pytest-runner'],
     test_suite='tests',
-    test_requires=['pytest'],
+    test_requires=['pytest', 'pytest-django'],
 
     author='Kalum J. Ost',
     author_email='kalumost@gmail.com',

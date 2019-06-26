@@ -3,3 +3,4 @@ djongo
 djangorestframework<4
 py
 pytest
+pytest-django
