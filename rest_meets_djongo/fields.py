@@ -80,21 +80,22 @@ class DjongoField(serializers.Field):
 
 
 class EmbeddedModelField(serializers.Field):
-    """ Field for Djongo EmbeddedModels, without specialized functions
+    """ Field for Djongo EmbeddedModel fields, without specialized
+    functions
 
     Acts similarly to DictField, with reliance on the passed in model
-    (model_field) to aid in conversion of the embedded model (borrowing
+    (model_field) to aid in conversion to the embedded model (borrowing
     its constructor to do so)
 
     Used internally by EmbeddedModelSerializer to map EmbeddedModels
+    which do not have an explicit serializer attached to them
     """
 
     def __init__(self, model_field, **kwargs):
         if not isinstance(model_field, models.EmbeddedModelField):
             raise TypeError(
-                "Tried to initialize a RMD EmbeddedModelField with a "
-                "`{}` type model_field: should be a Djongo "
-                "`EmbeddedModelField` type field".format(
+                "Tried to initialize a RMD `EmbeddedModelField` with a "
+                "`{}` type model_field".format(
                     type(model_field).__name__
                 ))
         self.model_field = model_field
@@ -102,7 +103,7 @@ class EmbeddedModelField(serializers.Field):
 
     default_error_messages = {
         'not_a_dict': serializers.DictField.default_error_messages['not_a_dict'],
-        'not_model': _('Expected a Model instance, but got a `{input_cls}`'),
+        'not_model': _('Expected a Model instance, but got `{input_cls}`'),
     }
 
     def to_internal_value(self, data):
@@ -125,4 +126,49 @@ class EmbeddedModelField(serializers.Field):
         return data
 
 
+class ArrayModelField(serializers.Field):
+    """ Field for Djongo ArrayModelFields, without specialized functions
+
+    Acts akin to a DRF List field, using the passed in model (model_field)
+    to aid in the conversion to the listed model and back
+
+    Used internally for RMD serializers later, primarily for mapping fields
+    which do not have explicit serialization set up already
+    """
+    def __init__(self, model_field, **kwargs):
+        if not isinstance(model_field, models.ArrayModelField):
+            raise TypeError(
+                "Tried to initialize a RMD `ArrayModelField` with a "
+                "`{}` type model_field".format(
+                    type(model_field).__name__
+                ))
+        self.model_field = model_field
+        super(ArrayModelField, self).__init__(**kwargs)
+
+    default_error_messages = {
+        'not_a_list': _('Expected a list of objects, but got `{input_class}`'),
+    }
+
+    def to_internal_value(self, data):
+        if not isinstance(data, list):
+            self.fail('not_a_list', input_class=type(data).__name__)
+        model_class = self.model_field.model_container
+        val_list = []
+        for datum in data:
+            val_list.append(model_class(**datum))
+        return val_list
+
+    def to_representation(self, value):
+        if not isinstance(value, list):
+            self.fail('not_a_list', input_class=type(value).__name__)
+        fields = self.model_field.model_container._meta.get_fields()
+        data_list = []
+        for val in value:
+            data = {}
+            for field in fields:
+                name = field.name
+                data[name] = getattr(val, name, None)
+            data_list.append(data)
+
+        return data_list
 

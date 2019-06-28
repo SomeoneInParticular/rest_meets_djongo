@@ -2,8 +2,7 @@
 test_djongomodelfield
 ---------------------
 
-Tests DRF serialization for our version of Model Fields,
-DjongoModelField
+Tests DRF serialization for our version of Model Fields, DjongoModelField
 """
 
 from django.core.exceptions import ValidationError
