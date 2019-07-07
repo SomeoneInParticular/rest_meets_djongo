@@ -1,31 +1,37 @@
-from djongo import models as djm_fields
-from rest_framework import serializers
-from rest_framework import fields as drf_fields
+import traceback
 
-from . import fields as rmd_fields
+from djongo import models
+from rest_framework import serializers
+
+from .fields import EmbeddedModelField
+from .utils import meta_manager
 
 
 def raise_errors_on_nested_writes(method_name, serializer, validated_data):
-    # Modified version of DRF's test, as to allow for EmbeddedModels to
-    # pass without being tagged as `nested`
+    """
+    Replacement for DRF, allows for EmbeddedModelFields to not cause an error
+    """
+    # Make sure the field is a format which can be managed by the method
     assert not any(
         isinstance(field, serializers.BaseSerializer) and
-        (field in validated_data) and
+        (field.source in validated_data) and
+        isinstance(validated_data[field.source], (list, dict)) and
         not isinstance(field, EmbeddedModelSerializer)
-        for key, field in serializer.fields.items()
-    ), (
-        '`{method_name}()` does not natively support writable nested '
-        'fields which are not Djongo derived fields by default.\nPlease '
-        'write an explicit `{method_name}()` method for '
-        '{module}.{cls_name}` or set `read_only=True` on these nested '
-        'fields'.format(
+        for field in serializer._writable_fields), (
+        'The method `{method_name}` does not support this form of '
+        'writable nested field by default.\nWrite a custom version of '
+        'the method for `{module}.{class_name}` or set the field to '
+        '`read_only=True`'.format(
             method_name=method_name,
             module=serializer.__class__.__module__,
-            cls_name=serializer.__class__.__name__
+            class_name=serializer.__class__.__name__
         )
     )
 
-    # Reject '.' formatted references, as is done by DRF
+    for field in serializer._writable_fields:
+        print(field)
+
+    # Make sure dotted-source fields weren't passed
     assert not any(
         '.' in field.source and
         (key in validated_data) and
@@ -43,69 +49,122 @@ def raise_errors_on_nested_writes(method_name, serializer, validated_data):
     )
 
 
-class DjangoModelSerializer(serializers.ModelSerializer):
-    """ Serializers for Djongo-derived models
+class DjongoModelSerializer(serializers.ModelSerializer):
+    """
+    A modification of DRF's ModelSerializer to allow for EmbeddedModelFields
+    to be easily handled.
 
-    Heavily derived from django-rest-framework-mongoengine; please
-
-    Adds support for Djongo embedded models, List fields (NYI), ObjectID
-    fields (NYI), and Array Model/Reference fields (NYI), on top of
-    fields already serializable via normal REST
-
-    ForeignKey's remain handled as normal (depth used to determine their
-    rendering) (NYI)
-
-    Embedded models are treated as nested field representations, WITHOUT
-    primary keys or relationship handling
-
-    List and Array fields are treated the same was as multiple object
-    serialization (a la `Many = True` parameter) (NYI)
-
-    Embedded fields for Files, Images, or Binary remain untested, and
-    may work in unpredictable ways (if at all)
+    Automatically generates fields for the model, accounting for embedded
+    model fields in the process
     """
 
+    # Easy trigger variable for use in inherited classes (IE EmbeddedModels)
     _saving_instances = True
 
-    new_mappings = {
-        djm_fields.EmbeddedModelField: rmd_fields.EmbeddedModelField,
-    }
-
-    serializer_field_mapping = serializers.ModelSerializer.serializer_field_mapping.update(new_mappings)
-
     def recursive_save(self, validated_data, instance=None):
+        """
+        Recursively traverses provided validated data, creating
+        EmbeddedModels w/ the correct class as it does so
+
+        Returns a Model instance
+        """
         obj_data = {}
 
-        obj_meta = self.Meta.model._meta
-
-        for key, value in validated_data.items():
+        for key, val in validated_data.items():
             try:
-                field = obj_meta.get_field(key)
+                field = self.fields[key]
 
-                # When field is an embedded model, recursively iterate
-                # through it as well
+                # For other embedded models, recursively build their fields too
                 if isinstance(field, EmbeddedModelSerializer):
-                    obj_data[key] = field.recursive_save(value)
+                    obj_data[key] = field.recursive_save(val)
 
-                # When the field is a list of EmbeddedModels
+                # For lists of embedded models, build each object as above
                 elif ((isinstance(field, serializers.ListSerializer) or
-                       isinstance(field, serializers.ListField)) and
-                      isinstance(field.child, EmbeddedModelSerializer)):
+                        isinstance(field, serializers.ListField)) and
+                       isinstance(field.child, EmbeddedModelSerializer)):
                     obj_data[key] = []
-                    for val in value:
-                        obj_data[key].append(field.child.recursive_save())
+                    for datum in val:
+                        obj_data[key].append(field.child.recursive_save(datum))
 
-                elif ():
-                    continue
+                # For ArrayModelFields, do above (with a different reference)
+                # WIP
+                elif isinstance(field, models.ArrayModelField):
+                    obj_data[key] = field.value_from_object(val)
 
-            except KeyError:  # Dynamic or ignored data
-                obj_data[key] = value
+                else:
+                    obj_data[key] = val
+
+            # Dynamic data (Shouldn't exist with current Djongo, but may
+            # appear in future)
+            except KeyError:
+                obj_data = val
+
+        if instance is None:
+            instance = self.Meta.model(**obj_data)
+        else:
+            for key, val in obj_data.items():
+                setattr(instance, key, val)
+
+        if self._saving_instances:
+            instance.save()
+
+        return instance
+
+    def create(self, validated_data):
+        raise_errors_on_nested_writes('create', self, validated_data)
+
+        model_class = self.Meta.model
+
+        # Remove many-to-many relations, since they are not used in
+        # create() by default
+        info = meta_manager.get_field_info(model_class)
+
+        try:
+            instance = self.recursive_save(validated_data)
+        except TypeError:
+            tb = traceback.format_exc()
+            msg = (
+                    'Got a `TypeError` when calling `%s.%s.create()`. '
+                    'This may be because you have a writable field on the '
+                    'serializer class that is not a valid argument to '
+                    '`%s.%s.create()`. You may need to make the field '
+                    'read-only, or override the %s.create() method to handle '
+                    'this correctly.\nOriginal exception was:\n %s' %
+                    (
+                        model_class.__name__,
+                        model_class._default_manager.name,
+                        model_class.__name__,
+                        model_class._default_manager.name,
+                        self.__class__.__name__,
+                        tb
+                    )
+            )
+            raise TypeError(msg)
+
+    def to_internal_value(self, data):
+        """
+        Borrows DRF's implimentation, but creates initial and validated
+        data for EmbeddedModels so recursive save can correctly use them
+
+        Arbitrary data is silently dropped from validated data, as to avoid
+        issues down the line (assignment to an attribute which doesn't exist)
+        """
+
+        for field in self._writable_fields:
+            if (isinstance(field, EmbeddedModelSerializer) and
+                    field.field_name in data):
+                field.initial_data = data[field.field_name]
+
+        ret = super(DjongoModelSerializer, self).to_internal_value(data)
+
+        for field in self._writable_fields:
+            if (isinstance(field, EmbeddedModelSerializer) and
+                    field.field_name in ret):
+                field._validated_data = ret[field.field_name]
+
+        return ret
 
 
-
-
-
-
-class EmbeddedModelSerializer(DjangoModelSerializer):
-    # WIP
+class EmbeddedModelSerializer(DjongoModelSerializer):
+    # Placeholder for the time being
     pass

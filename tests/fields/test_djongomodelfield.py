@@ -13,17 +13,16 @@ import pytest
 
 from rest_meets_djongo.fields import DjongoField
 
+from tests.objects import models
+
 
 # Example model with which to use as the basis of serialization
-class SampleModel(models.Model):
-    _id = models.ObjectIdField()
-    int_field = models.IntegerField()
-    char_field = models.CharField(max_length=5)
-
-
 class TestDjongoField(TestCase):
-    int_field = DjongoField(model_field=SampleModel._meta.get_field('int_field'))
-    char_field = DjongoField(model_field=SampleModel._meta.get_field('char_field'))
+
+    test_model = models.ObjIDModel
+
+    int_field = DjongoField(model_field=test_model._meta.get_field('int_field'))
+    char_field = DjongoField(model_field=test_model._meta.get_field('char_field'))
 
     def test_to_internal_value(self):
         """
