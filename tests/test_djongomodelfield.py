@@ -7,13 +7,12 @@ Tests DRF serialization for our version of Model Fields, DjongoModelField
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from djongo import models
 from rest_framework import fields
 import pytest
 
 from rest_meets_djongo.fields import DjongoField
 
-from tests.objects import models
+from tests import models
 
 
 # Example model with which to use as the basis of serialization

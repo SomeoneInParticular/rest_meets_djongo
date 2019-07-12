@@ -8,13 +8,10 @@ Tests functions used exclusively by serializers (namely value checks)
 from bson import ObjectId
 
 from django.test import TestCase
-from rest_framework import serializers as drf_serializers
 
 from rest_meets_djongo import serializers as rmd_serializers
 
-import pytest
-from tests.objects import models as test_models
-from tests.objects import serializers as test_sers
+from tests import serializers as test_sers, models as test_models
 
 
 class TestNestedWriteChecks(TestCase):

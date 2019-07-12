@@ -59,7 +59,17 @@ class OldAndNewEmbedModel(models.Model):
 
 
 # --- Relation Containing Models --- #
+# Model with a reverse relation (see RelationContainerModel)
+class ReverseRelatedModel(models.Model):
+    _id = models.ObjectIdField()
+    # container_field = ... (given by related name below)
+
+
 # Model with most types of relations
 class RelationContainerModel(models.Model):
-    fk_field = models.ForeignKey(to=GenericModel, on_delete=models.CASCADE)
-    mfk_field = models.ManyToManyField(to=ContainerModel, blank=True)
+    fk_field = models.ForeignKey(to=GenericModel,
+                                 on_delete=models.CASCADE,
+                                 related_name='+')
+    mfk_field = models.ManyToManyField(to=ReverseRelatedModel,
+                                       blank=True,
+                                       related_name='container_field')

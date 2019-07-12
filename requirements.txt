@@ -1,3 +1,4 @@
+-e .
 Django
 djongo
 djangorestframework<4

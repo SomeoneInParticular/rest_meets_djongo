@@ -9,7 +9,7 @@ from django.test import TestCase
 
 from rest_meets_djongo.fields import ArrayModelField
 
-from tests.objects import models as test_models
+from tests import models as test_models
 
 
 class TestArrayModelField(TestCase):

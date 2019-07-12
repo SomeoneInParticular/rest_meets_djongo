@@ -24,7 +24,7 @@ FieldInfo = namedtuple('FieldInfo', [
 
 # Information to keep track of for EmbeddedModelFields
 EmbedInfo = namedtuple('EmbedInfo', [
-    'model_field',  # The model the field corresponds too
+    'model_field',  # The model field for building a DRF field
     'is_array',  # If the model
 ])
 
@@ -35,13 +35,18 @@ def get_model_meta(model):
     return model._meta
 
 
+def is_model_abstract(model):
+    """
+    Quickly check if the provided model is abstract or not
+    """
+    return getattr(get_model_meta(model), 'abstract', False)
+
+
 def get_field_info(model):
-    # TODO: add tests for this
     """
     A bypass of DRF's model_meta function, customized to work with our
     custom FieldInfo tuple. Some minor optimizations as well.
     """
-
     # Bypass the concrete model fetch, as abstract (embedded) models lack it
     opts = get_model_meta(model)
 

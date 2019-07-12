@@ -1,10 +1,9 @@
 from django.test import TestCase
 from djongo import models as djm_models
-from rest_framework.utils import model_meta as drf_meta
 
-from rest_meets_djongo.utils import meta_manager
+from rest_meets_djongo import meta_manager
 
-from tests.objects import models as test_models
+from tests import models as test_models
 
 
 class TestMetaManagerUtils(TestCase):
@@ -97,7 +96,7 @@ class TestMetaManagerUtils(TestCase):
         # Confirm that the one-to-many relation was handled correctly
         mfk_field_info = field_info.relations['mfk_field']
         assert isinstance(mfk_field_info.model_field, djm_models.ManyToManyField)
-        assert mfk_field_info.related_model == test_models.ContainerModel
+        assert mfk_field_info.related_model == test_models.ReverseRelatedModel
         assert mfk_field_info.to_many
         # Many-to-Many fields lack a `to_field` pointer
         assert not mfk_field_info.has_through_model

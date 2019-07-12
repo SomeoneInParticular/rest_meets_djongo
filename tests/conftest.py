@@ -1,13 +1,10 @@
-from django.conf import settings
+def pytest_configure():
+    from django.conf import settings
 
-SECRET_KEY = 'T35TK3Y'
-
-
-def config_django():
     settings.configure(
         DEBUG=True,
         TEMPLATE_DEBUG=True,
-        SECRET_KEY=SECRET_KEY,
+        SECRET_KEY='T35TK3Y',
         DATABASES={
             'default': {
                 'ENGINE': 'djongo',
@@ -15,8 +12,14 @@ def config_django():
             }
         },
         INSTALLED_APPS=(
-            'rest_meets_djongo',
             'rest_framework',
+            'rest_meets_djongo',
             'tests'
         )
     )
+
+    try:
+        import django
+        django.setup()
+    except AttributeError:
+        pass
