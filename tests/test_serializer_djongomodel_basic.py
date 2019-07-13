@@ -13,7 +13,7 @@ from .utils import expect_dict_to_str
 
 class TestMapping(TestCase):
     # --- Serializer construction tests --- #
-    def test_basic_mapping(self):
+    def test_basic_w_object_id_mapping(self):
         """
         Confirm that the serializer can still handle models w/o other
         embedded models as fields, w/o custom field selection
@@ -39,6 +39,7 @@ class TestMapping(TestCase):
         # objects from now counting as the same
         assert expected_str == observed_str
 
+    # TODO: move to embed-specific test
     def test_embedded_model_mapping(self):
         """
         Confirm that the serializer handles embedded models as intended
@@ -61,6 +62,57 @@ class TestMapping(TestCase):
 
         expected_str = expect_dict_to_str(expected_dict)
         observed_str = str(ContainerSerializer().get_fields())
+
+        assert expected_str == observed_str
+
+    def test_field_options(self):
+        """
+        Confirm that new serializers will account for field options for
+        a given model
+        """
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = test_models.OptionsModel
+                fields = '__all__'
+
+        expected_dict = {
+            # Primary keys should be made read-only, with the db column being
+            # ignored entirely
+            "db_column_id": rmd_fields.ObjectIdField(read_only=True),
+            # Nullable and blank values should have required=False appended.
+            # The prior requires a unique validator as well, the text requires
+            # templates
+            "null_char": ("CharField(allow_null=True, "
+                          "required=False, "
+                          "validators=[<django.core.validators.MaxLengthValidator object>])"),
+            "blank_char": drf_fields.CharField(allow_blank=True, required=False,
+                                               style={'base_template': 'textarea.html'}),
+            # Fields with choices should be coerced into that form of field
+            "choice_char": "ChoiceField(choices=['Foo', 'Bar', 'Baz'], "
+                           "validators=[<django.core.validators.MaxLengthValidator object>])",
+            # Defaults are handled by Djongo, not DRF, so the argument should
+            # be stripped; however, this should make the field not required
+            "default_email": drf_fields.EmailField(max_length=254,
+                                                   required=False),
+            # Read only fields should be marked as such
+            "read_only_int": drf_fields.IntegerField(read_only=True),
+            # Errors, by default, should be distinct between DRF and Djongo;
+            # Therefore, it should be stripped unless explicitly set in the
+            # serializer by the user
+            "custom_error": drf_fields.IntegerField(max_value=2147483647,
+                                                    min_value=-2147483648),
+            # Help text should be conserved
+            "help_char": ("CharField(help_text='Super helpful text', "
+                          "validators=[<django.core.validators.MaxLengthValidator object>])"),
+            # Fields designated as unique should have a validator stating
+            # such added
+            "unique_int": ("IntegerField(max_value=2147483647, "
+                           "min_value=-2147483648, "
+                           "validators=[<UniqueValidator(queryset=OptionsModel.objects.all())>])"),
+        }
+
+        expected_str = expect_dict_to_str(expected_dict)
+        observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
 

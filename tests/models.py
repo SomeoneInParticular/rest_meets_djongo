@@ -37,6 +37,23 @@ class ObjIDModel(models.Model):
     char_field = models.CharField(max_length=5)
 
 
+# Model a variant for DRF standard arguments
+class OptionsModel(models.Model):
+    db_column_id = models.ObjectIdField(db_column='_id')
+    null_char = models.CharField(null=True)
+    blank_char = models.TextField(blank=True)
+    choice_char = models.CharField(choices=['Foo', 'Bar', 'Baz'])
+    default_email = models.EmailField(default='noonecares@no.nope')
+    read_only_int = models.IntegerField(editable=False)
+    # NOTE: By default, error messages are not conserved. This is just
+    # here to make sure it does not crash the serializer
+    custom_error = models.IntegerField(error_messages={
+        'blank': 'You tried to submit a blank integer, you dingus'
+    })
+    help_char = models.CharField(help_text='Super helpful text')
+    unique_int = models.IntegerField(unique=True)
+
+
 # --- Embedded Model Containing Models --- #
 # Model for use w/ testing embedded models
 class EmbedModel(models.Model):
