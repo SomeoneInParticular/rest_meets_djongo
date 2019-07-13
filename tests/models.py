@@ -2,10 +2,32 @@ from djongo import models
 
 
 # --- Basic Models --- #
-# Generic, DRF compliant model
+# Generic, DRF compliant model, with all DRF fields
 class GenericModel(models.Model):
-    float_field = models.FloatField()
-    date_field = models.DateField()
+    big_int = models.BigIntegerField()
+    bool = models.BooleanField()
+    char = models.CharField()
+    comma_int = models.CommaSeparatedIntegerField()
+    date = models.DateField()
+    date_time = models.DateTimeField()
+    decimal = models.DecimalField(max_digits=10, decimal_places=5)
+    email = models.EmailField()
+    float = models.FloatField()
+    integer = models.IntegerField()
+    null_bool = models.NullBooleanField()
+    pos_int = models.PositiveIntegerField()
+    pos_small_int = models.PositiveSmallIntegerField()
+    slug = models.SlugField()
+    small_int = models.SmallIntegerField()
+    text = models.TextField()
+    time = models.TimeField()
+    url = models.URLField()
+    ip = models.GenericIPAddressField()
+    uuid = models.UUIDField()
+
+    # TODO: add these
+    # basic_file = models.FileField()
+    # image = models.ImageField()
 
 
 # Model with its primary key set as its ObjectID

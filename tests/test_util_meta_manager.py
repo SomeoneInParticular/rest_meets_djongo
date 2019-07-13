@@ -34,8 +34,26 @@ class TestMetaManagerUtils(TestCase):
 
         # Confirm that the float and date field were both captured correctly
         field_type_dict = {
-            'float_field': djm_models.FloatField,
-            'date_field': djm_models.DateField
+            'big_int': djm_models.BigIntegerField,
+            'bool': djm_models.BooleanField,
+            'char': djm_models.CharField,
+            'comma_int': djm_models.CommaSeparatedIntegerField,
+            'date': djm_models.DateField,
+            'date_time': djm_models.DateTimeField,
+            'decimal': djm_models.DecimalField,
+            'email': djm_models.EmailField,
+            'float': djm_models.FloatField,
+            'integer': djm_models.IntegerField,
+            'null_bool': djm_models.NullBooleanField,
+            'pos_int': djm_models.PositiveIntegerField,
+            'pos_small_int': djm_models.PositiveSmallIntegerField,
+            'slug': djm_models.SlugField,
+            'small_int': djm_models.SmallIntegerField,
+            'text': djm_models.TextField,
+            'time': djm_models.TimeField,
+            'url': djm_models.URLField,
+            'ip': djm_models.GenericIPAddressField,
+            'uuid': djm_models.UUIDField,
         }
 
         for key, val in field_type_dict.items():
@@ -45,8 +63,26 @@ class TestMetaManagerUtils(TestCase):
         field_and_pk_type_dict = {
             'pk': djm_models.AutoField,
             'id': djm_models.AutoField,
-            'float_field': djm_models.FloatField,
-            'date_field': djm_models.DateField
+            'big_int': djm_models.BigIntegerField,
+            'bool': djm_models.BooleanField,
+            'char': djm_models.CharField,
+            'comma_int': djm_models.CommaSeparatedIntegerField,
+            'date': djm_models.DateField,
+            'date_time': djm_models.DateTimeField,
+            'decimal': djm_models.DecimalField,
+            'email': djm_models.EmailField,
+            'float': djm_models.FloatField,
+            'integer': djm_models.IntegerField,
+            'null_bool': djm_models.NullBooleanField,
+            'pos_int': djm_models.PositiveIntegerField,
+            'pos_small_int': djm_models.PositiveSmallIntegerField,
+            'slug': djm_models.SlugField,
+            'small_int': djm_models.SmallIntegerField,
+            'text': djm_models.TextField,
+            'time': djm_models.TimeField,
+            'url': djm_models.URLField,
+            'ip': djm_models.GenericIPAddressField,
+            'uuid': djm_models.UUIDField,
         }
 
         for key, val in field_and_pk_type_dict.items():

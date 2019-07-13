@@ -167,12 +167,42 @@ class TestMapping(TestCase):
 
         expected_dict = {
             'id': drf_fields.IntegerField(label='ID', read_only=True),
-            'float_field': drf_fields.FloatField(),
-            'date_field': drf_fields.DateField()
+            'big_int': drf_fields.IntegerField(max_value=9223372036854775807,
+                                               min_value=-9223372036854775808),
+            'bool': drf_fields.BooleanField(),
+            'char': ('CharField(validators='
+                     '[<django.core.validators.MaxLengthValidator object>])'),
+            'comma_int': ("CharField(validators="
+                          "[<django.core.validators.RegexValidator object>, "
+                          "<django.core.validators.MaxLengthValidator object>])"),
+            'date': drf_fields.DateField(),
+            'date_time': drf_fields.DateTimeField(),
+            'decimal': drf_fields.DecimalField(max_digits=10, decimal_places=5),
+            'email': drf_fields.EmailField(max_length=254),
+            'float': drf_fields.FloatField(),
+            'integer': drf_fields.IntegerField(max_value=2147483647,
+                                               min_value=-2147483648),
+            'null_bool': drf_fields.NullBooleanField(required=False),
+            'pos_int': drf_fields.IntegerField(max_value=2147483647,
+                                               min_value=0),
+            'pos_small_int': drf_fields.IntegerField(max_value=32767,
+                                                     min_value=0),
+            'slug': drf_fields.SlugField(allow_unicode=False,
+                                         max_length=50),
+            'small_int': drf_fields.IntegerField(max_value=32767,
+                                                 min_value=-32768),
+            'text': drf_fields.CharField(style={'base_template': 'textarea.html'}),
+            'time': drf_fields.TimeField(),
+            'url': drf_fields.URLField(max_length=200),
+            'ip': drf_fields.IPAddressField(),
+            'uuid': ("ModelField(model_field="
+                     "<django.db.models.fields.UUIDField: uuid>)"),
         }
 
         expected_str = expect_dict_to_str(expected_dict)
         observed_str = str(ChildSerializer().get_fields())
+
+        print(expected_str + "\n\n" + observed_str)
 
         assert expected_str == observed_str
 

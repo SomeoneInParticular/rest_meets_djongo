@@ -1,8 +1,9 @@
 from bson import ObjectId
+from collections import OrderedDict
+import uuid
 
 from django.test import TestCase
 import rest_framework.fields as drf_fields
-import rest_framework.serializers as drf_ser
 
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
@@ -101,9 +102,44 @@ class TestIntegration(TestCase):
     # --- Serializer integration tests --- #
     def test_retrieve_root(self):
         # Set up the referenced model instances in the database
+        generic_model_data = OrderedDict({
+            'id': 999,
+            'big_int': 1234567890,
+            'bool': True,
+            'char': 'Hello World',
+            'comma_int': '1,234',
+            'date': '1997-01-01',
+            'date_time': '1997-01-01 12:34:05',
+            'decimal': 1.2345,
+            'email': 'generic@gen.gen',
+            'float': 5.4321,
+            'integer': -32145,
+            'null_bool': None,
+            'pos_int': 15423,
+            'pos_small_int': 2,
+            'slug': "HEADLINE: HELLO WORLD",
+            'small_int': -1,
+            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
+                     "enim congue purus, efficitur suscipit mauris ligula vitae "
+                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
+                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
+                     "convallis metus id nunc scelerisque condimentum. Vivamus "
+                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
+                     "tortor sodales pulvinar. Pellentesque habitant morbi "
+                     "tristique senectus et netus et malesuada fames ac turpis "
+                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
+                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
+                     "elementum augue condimentum. Fusce sed tortor et sem "
+                     "ullamcorper viverra."),
+            'time': '12:34:05',
+            'url': 'https://lipsum.com/feed/html',
+            'ip': '127.01.01',
+            'uuid': uuid.uuid1(),
+        })
+
         generic_model_instance = test_models.GenericModel.objects.create(
-            float_field=0.12345,
-            date_field='1997-01-01'
+            **generic_model_data
         )
 
         mtm_model_instance = test_models.ReverseRelatedModel.objects.create(
@@ -136,10 +172,41 @@ class TestIntegration(TestCase):
 
     def test_retrieve_deep(self):
         # Set up the referenced model instances in the database
-        generic_model_data = {
-            'float_field': 0.12345,
-            'date_field': '1997-01-01'
-        }
+        generic_model_data = OrderedDict({
+            'id': 999,
+            'big_int': 1234567890,
+            'bool': True,
+            'char': 'Hello World',
+            'comma_int': '1,234',
+            'date': '1997-01-01',
+            'date_time': '1997-01-01 12:34:05',
+            'decimal': 1.2345,
+            'email': 'generic@gen.gen',
+            'float': 5.4321,
+            'integer': -32145,
+            'null_bool': None,
+            'pos_int': 15423,
+            'pos_small_int': 2,
+            'slug': "HEADLINE: HELLO WORLD",
+            'small_int': -1,
+            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
+                     "enim congue purus, efficitur suscipit mauris ligula vitae "
+                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
+                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
+                     "convallis metus id nunc scelerisque condimentum. Vivamus "
+                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
+                     "tortor sodales pulvinar. Pellentesque habitant morbi "
+                     "tristique senectus et netus et malesuada fames ac turpis "
+                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
+                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
+                     "elementum augue condimentum. Fusce sed tortor et sem "
+                     "ullamcorper viverra."),
+            'time': '12:34:05',
+            'url': 'https://lipsum.com/feed/html',
+            'ip': '127.01.01',
+            'uuid': uuid.uuid1(),
+        })
 
         generic_model_instance = test_models.GenericModel.objects.create(
             **generic_model_data
@@ -147,9 +214,9 @@ class TestIntegration(TestCase):
 
         generic_model_data.update({'id': generic_model_instance.pk})
 
-        mtm_model_data = {
+        mtm_model_data = OrderedDict({
             '_id': str(ObjectId())
-        }
+        })
 
         mtm_model_instance = test_models.ReverseRelatedModel.objects.create(
             **mtm_model_data
@@ -172,20 +239,58 @@ class TestIntegration(TestCase):
 
         serializer = RelModelSerializer(instance)
 
+        generic_model_data.update({
+            'decimal': '1.23450',
+            'uuid': str(generic_model_data['uuid']),
+        })
+
         # Confirm the data was serialized as expected
-        expect_data = {
+        expected_data = {
             'id': instance.pk,
             'fk_field': generic_model_data,
             'mfk_field': [mtm_model_data]
         }
 
-        self.assertDictEqual(expect_data, serializer.data)
+        expected_str = expect_dict_to_str(expected_data)
+        observed_str = str(serializer.data)
+
+        assert expected_str == observed_str
 
     def test_create(self):
         # Set up the referenced model instances in the database
         generic_model_data = {
-            'float_field': 0.12345,
-            'date_field': '1997-01-01'
+            'big_int': 1234567890,
+            'bool': True,
+            'char': 'Hello World',
+            'comma_int': '1,234',
+            'date': '1997-01-01',
+            'date_time': '1997-01-01 12:34:05',
+            'decimal': 12.345,
+            'email': 'generic@gen.gen',
+            'float': 5.4321,
+            'integer': -32145,
+            'null_bool': None,
+            'pos_int': 15423,
+            'pos_small_int': 2,
+            'slug': "HEADLINE: HELLO WORLD",
+            'small_int': -1,
+            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
+                     "enim congue purus, efficitur suscipit mauris ligula vitae "
+                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
+                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
+                     "convallis metus id nunc scelerisque condimentum. Vivamus "
+                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
+                     "tortor sodales pulvinar. Pellentesque habitant morbi "
+                     "tristique senectus et netus et malesuada fames ac turpis "
+                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
+                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
+                     "elementum augue condimentum. Fusce sed tortor et sem "
+                     "ullamcorper viverra."),
+            'time': '12:34:05',
+            'url': 'https://lipsum.com/feed/html',
+            'ip': '127.01.01',
+            'uuid': uuid.uuid1(),
         }
 
         generic_model_instance = test_models.GenericModel.objects.create(
@@ -213,15 +318,51 @@ class TestIntegration(TestCase):
         # Confirm that this data can be saved
         instance = serializer.save()
         assert instance.fk_field.pk == generic_model_instance.pk
-        assert instance.fk_field.float_field == generic_model_data['float_field']
+        assert instance.fk_field.comma_int == generic_model_data['comma_int']
 
     def test_update(self):
         # Set up the referenced model instances in the database
+        generic_model_data = OrderedDict({
+            'id': 999,
+            'big_int': 1234567890,
+            'bool': True,
+            'char': 'Hello World',
+            'comma_int': '1,234',
+            'date': '1997-01-01',
+            'date_time': '1997-01-01 12:34:05',
+            'decimal': 1.2345,
+            'email': 'generic@gen.gen',
+            'float': 5.4321,
+            'integer': -32145,
+            'null_bool': None,
+            'pos_int': 15423,
+            'pos_small_int': 2,
+            'slug': "HEADLINE: HELLO WORLD",
+            'small_int': -1,
+            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
+                     "enim congue purus, efficitur suscipit mauris ligula vitae "
+                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
+                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
+                     "convallis metus id nunc scelerisque condimentum. Vivamus "
+                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
+                     "tortor sodales pulvinar. Pellentesque habitant morbi "
+                     "tristique senectus et netus et malesuada fames ac turpis "
+                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
+                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
+                     "elementum augue condimentum. Fusce sed tortor et sem "
+                     "ullamcorper viverra."),
+            'time': '12:34:05',
+            'url': 'https://lipsum.com/feed/html',
+            'ip': '127.01.01',
+            'uuid': uuid.uuid1(),
+        })
+
         generic_model_instance = test_models.GenericModel.objects.create(
-            float_field=0.12345,
-            date_field='1997-01-01'
+            **generic_model_data
         )
 
+        # Preserve the pk for later checks
         ref_pk = generic_model_instance.pk
 
         mtm_model_instance = test_models.ReverseRelatedModel.objects.create(
@@ -243,9 +384,15 @@ class TestIntegration(TestCase):
                 model = test_models.RelationContainerModel
                 fields = '__all__'
 
+        new_model_data = generic_model_data.copy()
+        new_model_data.update({
+            'id': 123,
+            'float': 3.141392,
+            'date': '2019-06-11'
+        })
+
         new_generic_instance = test_models.GenericModel.objects.create(
-            float_field=3.141392,
-            date_field='2019-06-11'
+            **new_model_data
         )
 
         new_generic_instance.save()
