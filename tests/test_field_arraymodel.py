@@ -5,6 +5,8 @@ test_arraymodelfield
 Test DRF serialization for Djongo ArrayModelFields
 """
 
+from bson import ObjectId
+
 from django.test import TestCase
 
 from rest_meets_djongo.fields import ArrayModelField
@@ -18,8 +20,8 @@ class TestArrayModelField(TestCase):
     contain_model = test_models.ArrayContainerModel
 
     val_list = [
-        {'int_field': 34, 'char_field': "Hello There"},
-        {'int_field': 431, 'char_field': "Goodbye!"}
+        {'_id': ObjectId(), 'int_field': 34, 'char_field': "Hello There"},
+        {'_id': ObjectId(), 'int_field': 431, 'char_field': "Goodbye!"}
     ]
 
     obj_list = [

@@ -5,6 +5,8 @@ test_embeddedmodelfield
 Tests DRF serialization for EmbeddedModelFields
 """
 
+from bson import ObjectId
+
 from django.test import TestCase
 
 from rest_meets_djongo.fields import EmbeddedModelField
@@ -14,6 +16,7 @@ from tests import models as test_models
 
 class TestEmbeddedModelField(TestCase):
     obj_data = {
+        '_id': ObjectId(),
         'int_field': 123,
         'char_field': "Hello"
     }

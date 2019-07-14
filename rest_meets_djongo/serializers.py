@@ -1,5 +1,7 @@
-import traceback
 import copy
+from collections import namedtuple
+import traceback
+
 
 from django.db import models as dja_fields
 from djongo.models import fields as djm_fields
@@ -9,7 +11,17 @@ from rest_framework.settings import api_settings
 from rest_framework.utils.field_mapping import get_nested_relation_kwargs
 
 from .fields import EmbeddedModelField, ArrayModelField, ObjectIdField
-from rest_meets_djongo import meta_manager
+from .meta_manager import get_model_meta
+from rest_meets_djongo import meta_manager, kwarg_manager
+
+
+# Object to track and manage nested field customization attributes
+Customization = namedtuple("Customization", [
+    'fields',
+    'exclude',
+    'extra_kwargs',
+    'validate_methods'
+])
 
 
 def raise_errors_on_nested_writes(method_name, serializer, validated_data):
@@ -92,6 +104,13 @@ class DjongoModelSerializer(serializers.ModelSerializer):
         djm_fields.ArrayModelField: ArrayModelField,
     }
 
+    # Class for creating fields for embedded models w/o a serializer
+    serializer_generic_embed = EmbeddedModelField
+
+    # Class for creating nested fields for embedded model fields
+    # Defaults to EmbeddedModelSerializer or ArrayModelField
+    serializer_nested_embed = None
+
     # Easy trigger variable for use in inherited classes (IE EmbeddedModels)
     _saving_instances = True
 
@@ -110,7 +129,11 @@ class DjongoModelSerializer(serializers.ModelSerializer):
 
                 # For other embedded models, recursively build their fields too
                 if isinstance(field, EmbeddedModelSerializer):
-                    obj_data[key] = field.recursive_save(val)
+                    new_instance = None
+                    if instance is not None:
+                        field_obj = get_model_meta(instance).get_field(key)
+                        new_instance = field_obj.value_from_object(instance)
+                    obj_data[key] = field.recursive_save(val, new_instance)
 
                 # For embedded models not provided and explicit serializer,
                 #   build the default
@@ -226,7 +249,7 @@ class DjongoModelSerializer(serializers.ModelSerializer):
             )
         )
 
-        if meta_manager.is_model_abstract(self.Meta.model):
+        if meta_manager.is_model_abstract(self.Meta.model) and self._saving_instances:
             raise ValueError(
                 "Cannot use DjongoModelSerializer w/ Abstract Models.\n"
                 "Consider using EmbeddedModelSerializer instead."
@@ -381,16 +404,113 @@ class DjongoModelSerializer(serializers.ModelSerializer):
             list(declared_fields.keys()) +
             list(model_info.fields.keys()) +
             list(model_info.forward_relations.keys()) +
-            list(model_info.embedded_fields.keys())
+            list(model_info.embedded.keys())
         )
 
-    def build_field(self, field_name, info, model_class, nested_depth, embed_depth):
-        # Temporary cast to allow code to function
-        # TODO: Build this function fully
-        return super().build_field(field_name, info, model_class, nested_depth)
+    def get_nested_field_customization(self, field_name):
+        """
+        Fetches nested customization for Djongo unique fields
 
-    # TODO: Distinguish between this and the soon-to-be-added build_embed_field
-    def build_nested_field(self, field_name, relation_info, nested_depth):
+        Extracts fields, exclude, extra_kwargs, and validation methods
+        for the parent serializer, related to the attributes of field
+
+        Used to enable automatic writable nested field construction below
+        """
+        # This should be called after self.get_fields(). Therefore, we
+        # assume that most field validation has already been done
+
+        fields = getattr(self.Meta, 'fields', None)
+        exclude = getattr(self.Meta, 'exclude', None)
+
+        # String used to identify nested fields
+        leading_str = field_name + '.'
+
+        # Get nested fields/exclusions
+        if fields is not None:
+            nested_exclude = None
+            if fields == serializers.ALL_FIELDS:
+                nested_fields = serializers.ALL_FIELDS
+            else:
+                nested_fields = [field[len(leading_str):] for
+                                 field in fields if
+                                 field.startswith(leading_str)]
+        else:
+            nested_fields = None
+            nested_exclude = [field[len(leading_str):] for
+                                 field in exclude if
+                                 field.startswith(leading_str)]
+
+        # Get any user specified kwargs (including read-only)
+        extra_kwargs = self.get_extra_kwargs()
+        nested_extra_kwargs = {key[len(leading_str):]: value for
+                               key, value in extra_kwargs.items() if
+                               key.startswith(leading_str)}
+
+        # Fetch nested validations methods for the field
+        # Renames them so that they may be added to the serializer's
+        # validation dictionary without conflicts
+        nested_validate_methods = {}
+        for attr in dir(self.__class__):
+            valid_lead_str = 'validate_{}__'.format(field_name.replace('.', '__'))
+            if attr.startswith(valid_lead_str):
+                method = getattr(self.__class__, attr)
+                method_name = 'validate' + attr[len(valid_lead_str):]
+                nested_validate_methods[method_name] = method
+
+        return Customization(nested_fields, nested_exclude, nested_extra_kwargs,
+                             nested_validate_methods)
+
+    # TODO: Make this use self instead of a serializer
+    #  or move to a utility function
+    def apply_customization(self, serializer, customization):
+        """
+        Applies customization from nested fields to the serializer
+        """
+        # Apply fields/exclude
+        # Assumes basic verification has already been done
+        if customization.fields is not None:
+            serializer.Meta.fields = customization.fields
+        else:
+            serializer.Meta.exclude = customization.exclude
+
+        # Apply extra_kwargs
+        if customization.extra_kwargs is not None:
+            serializer.Meta.extra_kwargs = customization.extra_kwargs
+
+        # Apply validation methods
+        for method_name, method in customization.validate_methods.items():
+            setattr(serializer, method_name, method)
+
+    def build_field(self, field_name, info, model_class, nested_depth, embed_depth):
+        # Basic field construction
+        if field_name in info.fields_and_pk:
+            model_field = info.fields_and_pk[field_name]
+            return self.build_standard_field(field_name, model_field)
+        # Relational field construction
+        elif field_name in info.relations:
+            relation_info = info.relations[field_name]
+            if not nested_depth:
+                return self.build_relational_field(field_name, relation_info)
+            else:
+                return self.build_nested_relation_field(field_name, relation_info, nested_depth)
+        # Embedded field construction
+        elif field_name in info.embedded:
+            embed_info = info.embedded[field_name]
+            # If the field is in the deepest depth,
+            if embed_depth == 0:
+                return self.build_root_embed_field(field_name, embed_info)
+            else:
+                return self.build_nested_embed_field(field_name, embed_info, embed_depth)
+        # Property field construction
+        elif hasattr(model_class, field_name):
+            return self.build_property_field(field_name, model_class)
+        # URL field construction
+        elif field_name == self.url_field_name:
+            return self.build_url_field(field_name, model_class)
+        # If all mapping above fails,
+        return self.build_unknown_field(field_name, model_class)
+
+    def build_nested_relation_field(self, field_name, relation_info, nested_depth):
         """
         Create nested fields for forward/reverse relations
 
@@ -408,8 +528,43 @@ class DjongoModelSerializer(serializers.ModelSerializer):
 
         return field_class, field_kwargs
 
+    def build_root_embed_field(self, field_name, embed_info):
+        field_class = self.serializer_generic_embed
+        field_kwargs = kwarg_manager.get_generic_embed_kwargs(embed_info)
+        return field_class, field_kwargs
+
+    def build_nested_embed_field(self, field_name, embed_info, depth):
+        subclass = self.serializer_nested_embed or EmbeddedModelSerializer
+
+        class EmbeddedSerializer(subclass):
+            class Meta:
+                model = embed_info.model_field.model_container
+                embed_depth = depth - 1
+
+        # Apply customization to the nested field
+        customization = self.get_nested_field_customization(field_name)
+        self.apply_customization(EmbeddedSerializer, customization)
+
+        field_class = EmbeddedSerializer
+        field_kwargs = kwarg_manager.get_nested_embed_kwargs(field_name, embed_info)
+        return field_class, field_kwargs
+
+    def get_unique_for_date_validators(self):
+        # Not currently supported
+        return []
+
 
 class EmbeddedModelSerializer(DjongoModelSerializer):
-    # Placeholder for the time being
-    # TODO: Actually add this
-    pass
+    _saving_instances = False
+
+    def get_default_field_names(self, declared_fields, model_info):
+        return (
+                list(declared_fields.keys()) +
+                list(model_info.fields.keys()) +
+                list(model_info.forward_relations.keys()) +
+                list(model_info.embedded.keys())
+        )
+
+    def get_unique_together_validators(self):
+        # Skip these validators (ay be added again in future)
+        return []

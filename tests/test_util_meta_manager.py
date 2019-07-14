@@ -122,7 +122,7 @@ class TestMetaManagerUtils(TestCase):
         assert not fk_field_info.has_through_model
         assert not fk_field_info.reverse
 
-    def test_get_mfk_relation_field_info(self):
+    def test_get_mtm_relation_field_info(self):
         """
         Tests that many-to-many relation information is correctly sorted
         and managed by the get_field_info() function
@@ -145,8 +145,8 @@ class TestMetaManagerUtils(TestCase):
         field_info = meta_manager.get_field_info(self.embed_model)
 
         # Confirm that embedded model info was caught correctly
-        embed_field_info = field_info.embedded_fields['embed_field']
-        assert embed_field_info.model_field == test_models.EmbedModel
+        embed_field_info = field_info.embedded['embed_field']
+        assert embed_field_info.model_field.model_container == test_models.EmbedModel
         assert not embed_field_info.is_array
 
 

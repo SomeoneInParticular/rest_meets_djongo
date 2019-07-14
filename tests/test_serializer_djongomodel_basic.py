@@ -39,32 +39,6 @@ class TestMapping(TestCase):
         # objects from now counting as the same
         assert expected_str == observed_str
 
-    # TODO: move to embed-specific test
-    def test_embedded_model_mapping(self):
-        """
-        Confirm that the serializer handles embedded models as intended
-
-        Test done without explicit embedded model serialization, and thus
-        parses the EmbeddedModelField to a ReadOnlyFields. This is
-        because it does not know how to handle creation without an
-        explicit serializer
-        """
-
-        class ContainerSerializer(rmd_ser.DjongoModelSerializer):
-            class Meta:
-                model = test_models.ContainerModel
-                fields = '__all__'
-
-        expected_dict = {
-            '_id': rmd_fields.ObjectIdField(read_only=True),
-            'embed_field': drf_fields.ReadOnlyField()
-        }
-
-        expected_str = expect_dict_to_str(expected_dict)
-        observed_str = str(ContainerSerializer().get_fields())
-
-        assert expected_str == observed_str
-
     def test_field_options(self):
         """
         Confirm that new serializers will account for field options for

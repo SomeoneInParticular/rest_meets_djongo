@@ -1,5 +1,7 @@
 from djongo import models
 
+from rest_meets_djongo import serializers as rmd_ser
+
 
 # --- Basic Models --- #
 # Generic, DRF compliant model, with all DRF fields
@@ -57,6 +59,7 @@ class OptionsModel(models.Model):
 # --- Embedded Model Containing Models --- #
 # Model for use w/ testing embedded models
 class EmbedModel(models.Model):
+    _id = models.ObjectIdField(primary_key=False)
     int_field = models.IntegerField()
     char_field = models.CharField(max_length=5)
 
@@ -66,19 +69,28 @@ class EmbedModel(models.Model):
                 self.int_field == other.int_field)
 
     def __str__(self):
-        return str(self.int_field) + "-" + str(self.char_field)
+        return str(self._id) + ":" + str(self.int_field) + "-" + str(self.char_field)
 
     class Meta:
         abstract = True
 
 
-# Model for use w/ testing nested embedded models
+# Model for use w/ testing nested embedded models,
 class ContainerModel(models.Model):
     _id = models.ObjectIdField()
     embed_field = models.EmbeddedModelField(model_container=EmbedModel)
 
+    def __str__(self):
+        return str(self._id) + "-(" + str(self.embed_field) + ")"
 
-# Model for use w/ testing nested arrays of embedded models
+
+# Model for testing w/ embedded models which contain other embedded models
+class DeepContainerModel(models.Model):
+    str_id = models.CharField(primary_key=True)
+    deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
+
+
+# Model for use w/ testing nested arrays of embedded models,
 class ArrayContainerModel(models.Model):
     _id = models.ObjectIdField()
     embed_list = models.ArrayModelField(model_container=EmbedModel)

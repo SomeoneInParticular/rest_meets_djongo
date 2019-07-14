@@ -17,7 +17,7 @@ FieldInfo = namedtuple('FieldInfo', [
     'fields',  # Non-embedded or relational fields for the object
     'forward_relations',  # Relations from the model to another model
     'reverse_relations',  # Relations to the model from another model
-    'embedded_fields',  # Fields for models embedded within this model
+    'embedded',  # Fields for models embedded within this model
     'fields_and_pk',  # Shortcut for all fields that are not relational
     'relations',  # Shortcut for all relational fields (forward + reverse)
 ])
@@ -67,7 +67,7 @@ def get_field_info(model):
         fields=fields,
         forward_relations=fwd_relations,
         reverse_relations=rvs_relations,
-        embedded_fields=emb_fields,
+        embedded=emb_fields,
         fields_and_pk=fields_and_pk,
         relations=relations,
     )
@@ -103,7 +103,7 @@ def _build_generic_field_info(opts):
         # Embedded model field (array or singular)
         elif getattr(field, 'model_container', False):
             embedded_fields[field.name] = EmbedInfo(
-                model_field=field.model_container,
+                model_field=field,
                 is_array=isinstance(field, djm_fields.ArrayModelField)
             )
         # Other non-many-to-many fields
