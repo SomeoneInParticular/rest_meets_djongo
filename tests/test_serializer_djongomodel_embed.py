@@ -2,7 +2,6 @@ from bson import ObjectId
 from collections import OrderedDict
 
 from django.test import TestCase
-from rest_framework import fields as drf_fields
 
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
@@ -20,7 +19,6 @@ class TestMapping(TestCase):
         generated if no explicit serializer is provided; this serializer
         uses all fields of the embedded model and 0 kwargs
         """
-
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ContainerModel
@@ -42,6 +40,10 @@ class TestMapping(TestCase):
         assert expected_str == observed_str
 
     def test_deep_embed(self):
+        """
+        Confirm that embedded models within embedded models are still
+        mapped correctly by the serializer
+        """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.DeepContainerModel
@@ -69,8 +71,8 @@ class TestMapping(TestCase):
 
     def test_explicit_serializer_embed(self):
         """
-        Confirm that serializers can handle other nested serializers for
-        embedded models
+        Confirm that serializers can handle user specified serializers
+        for embedded models
         """
         # Class to use as a serializer field
         class EmbedSerializer(rmd_ser.EmbeddedModelSerializer):
@@ -97,8 +99,8 @@ class TestMapping(TestCase):
 
     def test_respects_fields(self):
         """
-        Confirm that serializers can be ignored by not adding them to
-        the fields attribute
+        Confirm that embedded models can be ignored by not specifying
+        them in the `fields` Meta parameter
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -116,8 +118,8 @@ class TestMapping(TestCase):
 
     def test_respects_exclude(self):
         """
-        Confirm that implicitly created serializers can be ignored by
-        naming their associated field in 'exclude'
+        Confirm that embedded models can be ignored by specifying them
+        in the `exclude` Meta parameter
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -135,8 +137,10 @@ class TestMapping(TestCase):
 
     def test_respects_no_depth(self):
         """
-        Confirm that implicitly created serializers will not be generated
-        if the user specifies 0 depth
+        Confirm that embedded models do not have embedded serializers
+        constructed if the user specifies `depth = 0` in Meta
+
+        In this case, these fields should be marked as `read_only` as well
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -159,8 +163,9 @@ class TestMapping(TestCase):
 
     def test_respects_partial_depth(self):
         """
-        Confirm that implicitly created serializers will stop being
-        generated when the user designated depth is reached
+        Confirm that embedded models do not have embedded serializers
+        constructed after the designated number of levels designated by
+        `depth` in the Meta of the original serializer.
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -192,11 +197,11 @@ class TestMapping(TestCase):
 
 class TestEmbeddingIntegration(TestCase):
     def test_generic_retrieve(self):
-        class TestSerializer(rmd_ser.EmbeddedModelSerializer):
-            class Meta:
-                model = test_models.ContainerModel
-                fields = '__all__'
-
+        """
+        Confirm that existing instances of models with other embedded
+        models can be retrieved and serialized correctly
+        """
+        # Create the instance to attempt to serialize
         embed_data = {
             '_id': ObjectId(),
             'int_field': 1234,
@@ -205,11 +210,21 @@ class TestEmbeddingIntegration(TestCase):
 
         embed_instance = test_models.EmbedModel(**embed_data)
 
-        instance = test_models.ContainerModel.objects.create(
-            embed_field=embed_instance
-        )
+        data = {
+            'embed_field': embed_instance
+        }
+
+        instance = test_models.ContainerModel.objects.create(**data)
+
+        # Attempt to serialize the instance
+        class TestSerializer(rmd_ser.EmbeddedModelSerializer):
+            class Meta:
+                model = test_models.ContainerModel
+                fields = '__all__'
+
         serializer = TestSerializer(instance)
 
+        # Confirm that the data was correctly serialized
         expected_data = {
             'embed_field': OrderedDict({
                 '_id': str(embed_data['_id']),
@@ -224,92 +239,127 @@ class TestEmbeddingIntegration(TestCase):
         assert expected_str == observed_str
 
     def test_generic_create(self):
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
-            class Meta:
-                model = test_models.ContainerModel
-                fields = '__all__'
-
+        """
+        Confirm that new instances of models with embedded models can
+        be generated and saved correctly from raw data
+        """
         embed_data = {
             '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'Embed'
         }
 
-        instance_data = {'embed_field': embed_data}
+        data = {'embed_field': embed_data}
 
-        serializer = TestSerializer(data=instance_data)
-        serializer.is_valid()
-
-        assert serializer.is_valid(), serializer.errors
-
-        instance = serializer.save()
-
-        assert isinstance(instance, test_models.ContainerModel)
-        # Confirm the embedded model is saved correctly
-        # ObjectID fields are currently locked as read_only, and thus not
-        # shown by default
-        assert instance.embed_field.int_field == embed_data['int_field']
-        assert instance.embed_field.char_field == embed_data['char_field']
-
-    # def test_generic_update(self):
-    #     class TestSerializer(rmd_ser.DjongoModelSerializer):
-    #         class Meta:
-    #             model = test_models.ContainerModel
-    #             fields = '__all__'
-    #
-    #     initial_embed_data = {
-    #         '_id': str(ObjectId()),
-    #         'int_field': 1234,
-    #         'char_field': 'Embed'
-    #     }
-    #
-    #     new_embed_data = {
-    #         'char_field': 'abcde',
-    #         'int_field': 4321
-    #     }
-    #
-    #     modifying_data = {
-    #         'embed_field': new_embed_data
-    #     }
-    #
-    #     embed_instance = test_models.EmbedModel(**initial_embed_data)
-    #     instance = test_models.ContainerModel(embed_field=embed_instance)
-    #     serializer = TestSerializer(instance, data=modifying_data)
-    #
-    #     assert serializer.is_valid(), serializer.errors
-    #
-    #     serializer.save()  # Should automatically update the instance
-    #     assert isinstance(instance.embed_field, test_models.EmbedModel)
-    #     assert instance.embed_field.int_field == new_embed_data['int_field']
-    #     assert instance.embed_field.char_field == new_embed_data['char_field']
-
-    def test_generic_partial_update(self):
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ContainerModel
                 fields = '__all__'
 
+        # Serializer should validate
+        serializer = TestSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+
+        # Sereializer should be able to save valid data correctly
+        instance = serializer.save()
+        assert isinstance(instance, test_models.ContainerModel)
+        # ObjectID fields are currently non-modifiable
+        assert instance.embed_field.int_field == embed_data['int_field']
+        assert instance.embed_field.char_field == embed_data['char_field']
+
+    def test_generic_update(self):
+        """
+        Confirm that existing instances of models with embedded models
+        can be updated when provided with new raw data
+        """
+        # Initial (to-be-updated) instance creation
         initial_embed_data = {
             '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'Embed'
         }
 
+        embed_instance = test_models.EmbedModel(**initial_embed_data)
+
+        initial_data = {
+            'embed_field': embed_instance
+        }
+
+        instance = test_models.ContainerModel.objects.create(**initial_data)
+
+        initial_data.update({'pk': instance.pk})
+
+        # Try and perform a serializer based update
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = test_models.ContainerModel
+                fields = '__all__'
+
+        new_embed_data = {
+            'char_field': 'abcde',
+            'int_field': 4321
+        }
+
+        new_data = {
+            'embed_field': new_embed_data
+        }
+
+        serializer = TestSerializer(instance, data=new_data)
+
+        # Confirm that the new data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer saves this updated instance correctly
+        serializer.save()
+        assert instance.pk == initial_data['pk']
+        assert isinstance(instance.embed_field, test_models.EmbedModel)
+        assert instance.embed_field.int_field == new_embed_data['int_field']
+        assert instance.embed_field.char_field == new_embed_data['char_field']
+
+    def test_generic_partial_update(self):
+        """
+        Confirm that existing instances of models with embedded models
+        can be updated when provided with new partial data
+        """
+        # Initial (to-be-updated) instance creation
+        initial_embed_data = {
+            '_id': str(ObjectId()),
+            'int_field': 1234,
+            'char_field': 'Embed'
+        }
+
+        embed_instance = test_models.EmbedModel(**initial_embed_data)
+
+        initial_data = {
+            'embed_field': embed_instance
+        }
+
+        instance = test_models.ContainerModel.objects.create(**initial_data)
+
+        initial_data.update({'pk': instance.pk})
+
+        # Attempt to perform a serializer based update
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = test_models.ContainerModel
+                fields = '__all__'
+
         new_embed_data = {
             'int_field': 4321
         }
 
-        modifying_data = {
+        new_data = {
             'embed_field': new_embed_data
         }
 
-        embed_instance = test_models.EmbedModel(**initial_embed_data)
-        instance = test_models.ContainerModel(embed_field=embed_instance)
-        serializer = TestSerializer(instance, data=modifying_data, partial=True)
+        serializer = TestSerializer(instance, data=new_data, partial=True)
 
+        # Confirm that the partial update data is valid
         assert serializer.is_valid(), serializer.errors
 
-        serializer.save()  # Should automatically update the instance
+        # Confirm that the serializer saves this updated instance correctly
+        serializer.save()
+        assert instance.pk == initial_data['pk']
         assert isinstance(instance.embed_field, test_models.EmbedModel)
         assert instance.embed_field.int_field == new_embed_data['int_field']
         assert instance.embed_field.char_field == initial_embed_data['char_field']

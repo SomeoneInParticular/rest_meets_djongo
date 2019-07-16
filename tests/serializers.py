@@ -25,5 +25,5 @@ class NestedModelSerializer(rmd_ser.DjongoModelSerializer):
     embed_val = EmbedModelSerializer()
 
     class Meta:
-        model = test_models.OldAndNewEmbedModel
+        model = test_models.DualEmbedModel
         fields = '__all__'

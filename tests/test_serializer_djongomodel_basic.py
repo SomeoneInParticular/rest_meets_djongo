@@ -12,13 +12,11 @@ from .utils import expect_dict_to_str
 
 
 class TestMapping(TestCase):
-    # --- Serializer construction tests --- #
-    def test_basic_w_object_id_mapping(self):
+    def test_basic_with_object_id(self):
         """
         Confirm that the serializer can still handle models w/o other
-        embedded models as fields, w/o custom field selection
-
-        (ObjectID is also tested here)
+        embedded models as fields. We also confirm that ObjectID fields
+        can be managed here as well
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -41,8 +39,8 @@ class TestMapping(TestCase):
 
     def test_field_options(self):
         """
-        Confirm that new serializers will account for field options for
-        a given model
+        Confirm that new serializers will catch and correctly manage
+        field options for its specified model
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -64,8 +62,9 @@ class TestMapping(TestCase):
             # Fields with choices should be coerced into that form of field
             "choice_char": "ChoiceField(choices=['Foo', 'Bar', 'Baz'], "
                            "validators=[<django.core.validators.MaxLengthValidator object>])",
-            # Defaults are handled by Djongo, not DRF, so the argument should
-            # be stripped; however, this should make the field not required
+            # Defaults are handled by Django, not DRF, so the argument should
+            # be stripped implicitly (though it still is in use during save!)
+            # This will set required=False, however
             "default_email": drf_fields.EmailField(max_length=254,
                                                    required=False),
             # Read only fields should be marked as such
@@ -91,6 +90,10 @@ class TestMapping(TestCase):
         assert expected_str == observed_str
 
     def test_respects_fields(self):
+        """
+        Confirm that basic fields can still be ignored by not specifying
+        them in the `fields` Meta parameter
+        """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ObjIDModel
@@ -107,6 +110,10 @@ class TestMapping(TestCase):
         assert expected_str == observed_str
 
     def test_respects_exclude(self):
+        """
+        Confirm that basic fields can still be ignored by specifying them
+        in the `exclude` Meta parameter
+        """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ObjIDModel
@@ -124,8 +131,8 @@ class TestMapping(TestCase):
 
     def test_invalid_field_caught(self):
         """
-        Confirm that field names not found in the model are caught
-        with a configuration error
+        Confirm that field names not found in the model are still
+        caught with a configuration error
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
@@ -152,8 +159,9 @@ class TestMapping(TestCase):
 
     def test_missing_inherited_field_ignorable(self):
         """
-        Confirm the fields declared in a serializer that another serializer
-        inherits from can be safely ignored
+        Confirm the fields declared in a serializer that another
+        serializer inherits from can be safely ignored in child
+        serializers
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             missing = drf_ser.ReadOnlyField()
@@ -173,10 +181,10 @@ class TestMapping(TestCase):
 
     def test_inherited_field_nullable(self):
         """
-        Confirm the fields declared in a serializer that another serializer
-        inherits from can be set to none to ignore it
+        Confirm the fields declared in a serializer that another
+        serializer inherits from can still be ignored by setting them to
+        `None` in the child serializer
         """
-
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             missing = drf_ser.ReadOnlyField()
 
@@ -234,8 +242,11 @@ class TestMapping(TestCase):
 
 
 class TestIntegration(TestCase):
-    # --- Serializer integration tests --- #
     def test_retrieve(self):
+        """
+        Confirm that existing instances of models with basic fields
+        can still be retrieved and serialized correctly
+        """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ObjIDModel
@@ -254,6 +265,10 @@ class TestIntegration(TestCase):
         self.assertDictEqual(data, serializer.data)
 
     def test_create(self):
+        """
+        Confirm that new instances of models with basic fields can still
+        be generated and saved correctly from raw data
+        """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.ObjIDModel
@@ -273,7 +288,48 @@ class TestIntegration(TestCase):
         assert instance.int_field == data['int_field']
 
     def test_update(self):
+        """
+        Confirm that existing instances of models with basic fields can
+        still be updated when provided with new raw data
+        """
         # Initial (to-be-updated) instance instantiation
+        initial_data = {
+            'int_field': 55,
+            'char_field': 'Foo'
+        }
+
+        instance = test_models.ObjIDModel.objects.create(**initial_data)
+
+        initial_data.update({'pk': instance.pk})
+
+        # Try and perform a serializer based update
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = test_models.ObjIDModel
+                fields = '__all__'
+
+        new_data = {
+            'int_field': 1234,
+            'char_field': 'Bar'
+        }
+
+        serializer = TestSerializer(instance, data=new_data)
+
+        # Confirm that the partial update data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer saves this updated instance correctly
+        serializer.save()
+        assert instance.pk == initial_data['pk']
+        assert instance.int_field == new_data['int_field']
+        assert instance.char_field == new_data['char_field']
+
+    def test_partial_update(self):
+        """
+        Confirm that existing instances of models with basic fields can
+        still be updated when provided with new partial data
+        """
+        # Initial (to-be-updated) instance creation
         old_data = {
             'int_field': 55,
             'char_field': 'Foo'
@@ -312,5 +368,4 @@ class TestIntegration(TestCase):
         }
 
         self.assertDictEqual(serializer.data, expected_data)
-
 

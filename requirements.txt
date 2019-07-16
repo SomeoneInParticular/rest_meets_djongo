@@ -1,4 +1,5 @@
 -e .
+bson
 Django
 djongo
 djangorestframework<4

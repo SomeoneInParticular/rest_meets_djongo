@@ -1,7 +1,5 @@
 from djongo import models
 
-from rest_meets_djongo import serializers as rmd_ser
-
 
 # --- Basic Models --- #
 # Generic, DRF compliant model, with all DRF fields
@@ -96,10 +94,10 @@ class ArrayContainerModel(models.Model):
     embed_list = models.ArrayModelField(model_container=EmbedModel)
 
 
-# A model setup to have both old DRF embedded model and new RMD embedded
-# model serialization (the prior should be caught and throw a warning)
-# TODO: confirm the prior is properly caught with warning
-class OldAndNewEmbedModel(models.Model):
+# A model with both an abstract and non-abstract embedded model
+# Both should still function, one simply also has a pk which needs to
+# be used and validated
+class DualEmbedModel(models.Model):
     _id = models.ObjectIdField()
     generic_val = models.EmbeddedModelField(
         model_container=GenericModel
@@ -113,7 +111,7 @@ class OldAndNewEmbedModel(models.Model):
 # Model with a reverse relation (see RelationContainerModel)
 class ReverseRelatedModel(models.Model):
     _id = models.ObjectIdField()
-    # container_field = ... (given by related name below)
+    # container_field = ... (given by `related_name` below)
 
 
 # Model with most types of relations
