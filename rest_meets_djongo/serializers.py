@@ -6,7 +6,7 @@ import traceback
 from django.db import models as dja_fields
 from djongo.models import fields as djm_fields
 from rest_framework import fields as drf_fields
-from rest_framework import serializers
+from rest_framework import serializers as drf_ser
 from rest_framework.settings import api_settings
 from rest_framework.utils.field_mapping import get_nested_relation_kwargs
 
@@ -26,24 +26,28 @@ Customization = namedtuple("Customization", [
 
 def raise_errors_on_nested_writes(method_name, serializer, validated_data):
     """
-    Replacement for DRF, allows for EmbeddedModelFields to not cause an error
+    Replacement for DRF, allows for Djongo fields to not throw errors
     """
     # Make sure the field is a format which can be managed by the method
-    assert not any(
-        isinstance(field, serializers.BaseSerializer) and
-        (field.source in validated_data) and
-        isinstance(validated_data[field.source], (list, dict)) and
-        not isinstance(field, EmbeddedModelSerializer)
-        for field in serializer._writable_fields), (
-        'The method `{method_name}` does not support this form of '
-        'writable nested field by default.\nWrite a custom version of '
-        'the method for `{module}.{class_name}` or set the field to '
-        '`read_only=True`'.format(
-            method_name=method_name,
-            module=serializer.__class__.__module__,
-            class_name=serializer.__class__.__name__
+    for field in serializer._writable_fields:
+        assert not (
+            isinstance(field, drf_ser.BaseSerializer) and
+            (field.source in validated_data) and
+            isinstance(validated_data[field.source], (list, dict)) and not
+            (isinstance(field, EmbeddedModelSerializer) or
+             isinstance(field, drf_ser.ListSerializer) or
+             isinstance(field, drf_fields.ListField)
+             )), (
+            'The method `{method_name}` does not support serialization of '
+            '`{field_name}` fields in writable nested field by default.\n'
+            'Write a custom version of the method for `{module}.{class_name}` '
+            'or set the field to `read_only=True`'.format(
+                field_name=field.__class__.__name__,
+                method_name=method_name,
+                module=serializer.__class__.__module__,
+                class_name=serializer.__class__.__name__
+            )
         )
-    )
 
     # Make sure dotted-source fields weren't passed
     assert not any(
@@ -63,7 +67,7 @@ def raise_errors_on_nested_writes(method_name, serializer, validated_data):
     )
 
 
-class DjongoModelSerializer(serializers.ModelSerializer):
+class DjongoModelSerializer(drf_ser.ModelSerializer):
     """
     A modification of DRF's ModelSerializer to allow for EmbeddedModelFields
     to be easily handled.
@@ -136,14 +140,14 @@ class DjongoModelSerializer(serializers.ModelSerializer):
                     obj_data[key] = field.recursive_save(val, new_instance)
 
                 # For embedded models not provided and explicit serializer,
-                #   build the default
+                #   build the default version
                 elif isinstance(field, EmbeddedModelField):
                     obj_data[key] = field.model_field(**val)
 
                 # For lists of embedded models, build each object as above
-                elif ((isinstance(field, serializers.ListSerializer) or
-                        isinstance(field, serializers.ListField)) and
-                       isinstance(field.child, EmbeddedModelSerializer)):
+                elif ((isinstance(field, drf_ser.ListSerializer) or
+                       isinstance(field, drf_ser.ListField)) and
+                      isinstance(field.child, EmbeddedModelSerializer)):
                     obj_data[key] = []
                     for datum in val:
                         obj_data[key].append(field.child.recursive_save(datum))
@@ -332,7 +336,7 @@ class DjongoModelSerializer(serializers.ModelSerializer):
         # If the user specified a `fields` attribute in Meta
         if fields is not None:
             # If the user just wants all fields...
-            if fields == serializers.ALL_FIELDS:
+            if fields == drf_ser.ALL_FIELDS:
                 return self.get_default_field_names(declared_fields, info)
             # If the user specified fields explicitly...
             elif isinstance(fields, (list, tuple)):
@@ -428,8 +432,8 @@ class DjongoModelSerializer(serializers.ModelSerializer):
         # Get nested fields/exclusions
         if fields is not None:
             nested_exclude = None
-            if fields == serializers.ALL_FIELDS:
-                nested_fields = serializers.ALL_FIELDS
+            if fields == drf_ser.ALL_FIELDS:
+                nested_fields = drf_ser.ALL_FIELDS
             else:
                 nested_fields = [field[len(leading_str):] for
                                  field in fields if
