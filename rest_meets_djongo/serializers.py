@@ -2,7 +2,6 @@ import copy
 from collections import namedtuple
 import traceback
 
-
 from django.db import models as dja_fields
 from djongo.models import fields as djm_fields
 from rest_framework import fields as drf_fields

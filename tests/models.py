@@ -111,11 +111,13 @@ class DualEmbedModel(models.Model):
 # Model with a reverse relation (see RelationContainerModel)
 class ReverseRelatedModel(models.Model):
     _id = models.ObjectIdField()
+    boolean = models.BooleanField(default=True)
     # container_field = ... (given by `related_name` below)
 
 
 # Model with most types of relations
 class RelationContainerModel(models.Model):
+    _id = models.ObjectIdField()
     fk_field = models.ForeignKey(to=GenericModel,
                                  on_delete=models.CASCADE,
                                  related_name='+')

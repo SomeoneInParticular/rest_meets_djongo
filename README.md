@@ -1,12 +1,13 @@
 rest-meets-djongo
 ===
-A package which enables serialization of Djongo fields with 
-django-rest-framework's (DRF) serializers and viewsets
+This package enables default model serializers for models with Djongo 
+fields to be generated, for use in Django-Rest-Framework apps
 
 ## Features
-**NOTE: This repo is currently under development, and most (if not all) 
-of its features are likely to throw errors or behave in unexpected ways; 
-use at your own risk**
+**NOTE: This repo is currently under active development, and many of the
+features of the package may act in strange ways. Please report any issues 
+to 'https://gitlab.com/SomeoneInParticular/rest_meets_djongo/issues' as 
+you find them**
 
 Similar to DRF ModelSerializers, creating serializers using 
 DjongoModelSerializer allows for the following fields to be detected and 
@@ -14,10 +15,10 @@ automatically managed through DRF's serializer setup. These fields
 include:
 * ObjectIDField
 * EmbeddedModelField
-* ArrayModelField (WIP)
-* ArrayReferenceField (WIP)
+* ArrayModelField
+* ArrayReferenceField
 
-## Usage
+## Installation
 <ol><li>
 Install rest-meets-djongo:
 
@@ -26,18 +27,14 @@ pip install rest_meets_djongo
 ```
 
 </li><li>
-Replace REST's 'ModelSerializer' with 'DjongoModelSerializer' and enjoy 
-Djongo model serializeation
-
+Replace REST's 'ModelSerializer' with 'DjongoModelSerializer' and enjoy!
 </li></ol>
 
-## Requirements:
-(Earlier version testing is currently underway; these are just the 
+## Requirements
+(Alternate version testing is currently underway; these are just the 
 confirmed functional versions)
 
 1. Python 3.6 or higher
 2. MongoDB 4.0 or higher
 3. djangorestframework 3.9 or higher
 4. djongo 1.2 or higher
-
-

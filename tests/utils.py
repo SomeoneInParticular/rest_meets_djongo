@@ -1,3 +1,5 @@
+from bson import ObjectId
+
 from rest_framework.exceptions import ErrorDetail
 
 
@@ -16,6 +18,8 @@ def expect_dict_to_str(expect_dict):
         str_val = "'" + name + "': "
         if isinstance(val, str):
             str_val += val
+        elif isinstance(val, ObjectId):
+            str_val += ("'" + str(val) + "'")
         else:
             str_val += str(val)
         expect_list.append(str_val)

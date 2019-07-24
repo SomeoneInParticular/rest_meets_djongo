@@ -9,7 +9,6 @@ import rest_framework.serializers as drf_ser
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
-import pytest
 from tests import models as test_models
 from .utils import expect_dict_to_str
 
@@ -28,7 +27,7 @@ class TestMapping(TestCase):
                 fields = '__all__'
 
         expected_dict = {
-            'id': drf_fields.IntegerField(label='ID', read_only=True),
+            '_id': rmd_fields.ObjectIdField(read_only=True),
             'fk_field': 'PrimaryKeyRelatedField(queryset=GenericModel.objects.all())',
             'mfk_field': ('ManyRelatedField(child_relation='
                           'PrimaryKeyRelatedField(queryset='
@@ -55,6 +54,7 @@ class TestMapping(TestCase):
 
         expect_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
+            'boolean': drf_fields.BooleanField(required=False)
             # Reverse models are excluded by default (as they are difficult
             # to predict how they should be parsed)
         }
@@ -96,7 +96,7 @@ class TestMapping(TestCase):
                 exclude = ['fk_field']
 
         expected_dict = {
-            'id': drf_fields.IntegerField(label='ID', read_only=True),
+            '_id': rmd_fields.ObjectIdField(read_only=True),
             'mfk_field': ('ManyRelatedField(child_relation='
                           'PrimaryKeyRelatedField(queryset='
                           'ReverseRelatedModel.objects.all(), '
@@ -179,7 +179,7 @@ class TestIntegration(TestCase):
         serializer = TestSerializer(instance)
 
         expect_data = {
-            'id': instance.pk,
+            '_id': str(instance.pk),  # Serializers represent ObjectID's as strings
             'fk_field': basic_instance.pk,
             'mfk_field': [mtm_instance._id]
         }
@@ -233,10 +233,9 @@ class TestIntegration(TestCase):
             **generic_model_data
         )
 
-        generic_model_data.update({'id': generic_instance.pk})
-
         mtm_model_data = OrderedDict({
-            '_id': str(ObjectId())
+            '_id': str(ObjectId()),
+            'boolean': False
         })
 
         mtm_model_instance = test_models.ReverseRelatedModel.objects.create(
@@ -252,13 +251,13 @@ class TestIntegration(TestCase):
         instance.mfk_field.add(mtm_model_instance)
 
         # Attempt to serialize the instance
-        class RelModelSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
                 model = test_models.RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
-        serializer = RelModelSerializer(instance)
+        serializer = TestSerializer(instance)
 
         # Rewrite the expected data in the serialized form, for comparision
         generic_model_data.update({
@@ -268,7 +267,7 @@ class TestIntegration(TestCase):
 
         # Confirm the data was serialized as expected
         expected_data = {
-            'id': instance.pk,
+            '_id': instance.pk,
             'fk_field': generic_model_data,
             'mfk_field': [mtm_model_data]
         }
