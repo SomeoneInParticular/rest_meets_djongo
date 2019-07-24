@@ -6,6 +6,7 @@ from django.test import TestCase
 from rest_meets_djongo import serializers as rmd_ser
 
 from .models import ArrayContainerModel, EmbedModel
+from .utils import build_error_dict
 
 
 class TestIntegration(TestCase):
@@ -146,3 +147,50 @@ class TestIntegration(TestCase):
         assert instance.embed_list[0].char_field == embed_data_1['char_field']
         assert instance.embed_list[1].int_field == embed_data_2['int_field']
         assert instance.embed_list[2].char_field == embed_data_1['char_field']
+
+    def test_invalid_nest_fields_caught(self):
+        """
+        Confirm that new instances of models w/ ArrayModelFields fields
+        can still be generated and saved correctly from raw data
+        """
+        # Set up data to use for creation
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = ArrayContainerModel
+                fields = '__all__'
+
+        embed_data_1 = {
+            '_id': str(ObjectId()),
+            'int_field': 2147483650,  # Invalid, integer above max
+            'char_field': 'foo-fab'  # Invalid, string too large
+        }
+
+        embed_data_2 = {
+            '_id': str(ObjectId()),
+            'int_field': 4321,
+            'char_field': 'bar-baz',  # Invalid, string too large
+        }
+
+        embed_list = [
+            embed_data_1, embed_data_2
+        ]
+
+        data = {
+            'embed_list': embed_list
+        }
+
+        # Serializer should NOT validate correctly
+        serializer = TestSerializer(data=data)
+        assert not serializer.is_valid()
+
+        # Confirm that the errors caught are correct
+        err_dict = build_error_dict(serializer.errors)
+        embed_errs = err_dict['embed_list']
+
+        # All errors should be associated with their respective instance
+        assert 'max_value' in embed_errs[0]['int_field']
+        assert 'max_length' in embed_errs[0]['char_field']
+        assert 'max_length' in embed_errs[1]['char_field']
+
+        # Only the three errors we created should be caught
+        assert len(err_dict['embed_list']) == 2

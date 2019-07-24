@@ -32,7 +32,7 @@ Djongo model serializeation
 </li></ol>
 
 ## Requirements:
-(Earlier version testing is currently being testing; these are just the 
+(Earlier version testing is currently underway; these are just the 
 confirmed functional versions)
 
 1. Python 3.6 or higher

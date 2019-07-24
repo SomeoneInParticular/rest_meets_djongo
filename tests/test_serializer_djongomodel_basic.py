@@ -236,8 +236,6 @@ class TestMapping(TestCase):
         expected_str = expect_dict_to_str(expected_dict)
         observed_str = str(ChildSerializer().get_fields())
 
-        print(expected_str + "\n\n" + observed_str)
-
         assert expected_str == observed_str
 
 
