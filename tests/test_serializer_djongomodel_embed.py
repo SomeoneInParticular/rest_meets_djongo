@@ -31,7 +31,7 @@ class TestMapping(TestCase):
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
-            'embed_field': EmbeddedSerializer()
+            'embed_field': EmbeddedSerializer(allow_null=True, required=False)
         }
 
         expected_str = expect_dict_to_str(expected_dict)
@@ -59,7 +59,7 @@ class TestMapping(TestCase):
             'str_id': ("CharField("
                        "validators=[<django.core.validators.MaxLengthValidator object>, "
                        "<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
-            'deep_embed': EmbeddedSerializer()
+            'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
         expected_str = expect_dict_to_str(expected_dict)
@@ -182,7 +182,7 @@ class TestMapping(TestCase):
             'str_id': ("CharField("
                        "validators=[<django.core.validators.MaxLengthValidator object>, "
                        "<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
-            'deep_embed': EmbeddedSerializer()
+            'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
         expected_str = expect_dict_to_str(expected_dict)
