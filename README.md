@@ -16,14 +16,21 @@ include:
 * ObjectIDField
 * EmbeddedModelField
 * ArrayModelField
-* ArrayReferenceField
+
+The following are currently not fully functional, and as a result are 
+not explicitly supported (yet):
+* ForeignKeyField (Reverse relations are not generated, even if specified, 
+by Djongo)
+* ManyToManyField (Reverse relations are not generated, even if specified, 
+by Djongo)
+* ArrayReferenceField (WIP)
 
 ## Installation
 <ol><li>
 Install rest-meets-djongo:
 
 ```
-pip install rest_meets_djongo
+pip install rest-meets-djongo
 ```
 
 </li><li>

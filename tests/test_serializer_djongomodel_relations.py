@@ -416,8 +416,7 @@ class TestIntegration(TestCase):
         # Foreign keys should have been stripped during validation
         self.assertDictEqual(serializer.validated_data, {})
 
-        # Confirm that the data can still be saved, just without
-        # reference data
+        # Confirm that the data can still be saved, just sans relations
         instance = serializer.save()
 
         # Confirm that the instance does not, in fact, have those fields
@@ -432,6 +431,8 @@ class TestIntegration(TestCase):
             fk_field = drf_ser.PrimaryKeyRelatedField(
                 queryset=test_models.GenericModel.objects.all()
             )
+            # ManyToMany writable instances are currently user-defined only
+            # This is WIP however
 
             class Meta:
                 model = test_models.RelationContainerModel

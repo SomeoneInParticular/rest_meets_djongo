@@ -138,8 +138,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                         new_instance = field_obj.value_from_object(instance)
                     obj_data[key] = field.recursive_save(val, new_instance)
 
-                # For embedded models not provided and explicit serializer,
-                #   build the default version
+                # Build defaults for EmbeddedModelFields
                 elif isinstance(field, EmbeddedModelField):
                     obj_data[key] = field.model_field(**val)
 
@@ -151,11 +150,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                     for datum in val:
                         obj_data[key].append(field.child.recursive_save(datum))
 
-                # For ArrayModelFields, do above (with a different reference)
-                # WIP
-                elif isinstance(field, djm_fields.ArrayModelField):
-                    obj_data[key] = field.value_from_object(val)
-
+                # Other values, such as common datatypes
                 else:
                     obj_data[key] = val
 

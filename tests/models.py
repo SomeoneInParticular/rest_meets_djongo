@@ -29,12 +29,16 @@ class GenericModel(models.Model):
     # basic_file = models.FileField()
     # image = models.ImageField()
 
+    objects = models.DjongoManager()
+
 
 # Model with its primary key set as its ObjectID
 class ObjIDModel(models.Model):
     _id = models.ObjectIdField()
     int_field = models.IntegerField()
     char_field = models.CharField(max_length=5)
+
+    objects = models.DjongoManager()
 
 
 # Model a variant for DRF standard arguments
@@ -45,13 +49,15 @@ class OptionsModel(models.Model):
     choice_char = models.CharField(choices=['Foo', 'Bar', 'Baz'])
     default_email = models.EmailField(default='noonecares@no.nope')
     read_only_int = models.IntegerField(editable=False)
-    # NOTE: By default, error messages are not conserved. This is just
-    # here to make sure it does not crash the serializer
+    # NOTE: By default, custom error messages are not conserved. This is
+    # just here to make sure it does not crash the serializer
     custom_error = models.IntegerField(error_messages={
         'blank': 'You tried to submit a blank integer, you dingus'
     })
     help_char = models.CharField(help_text='Super helpful text')
     unique_int = models.IntegerField(unique=True)
+
+    objects = models.DjongoManager()
 
 
 # --- Embedded Model Containing Models --- #
@@ -60,6 +66,8 @@ class EmbedModel(models.Model):
     _id = models.ObjectIdField(primary_key=False)
     int_field = models.IntegerField()
     char_field = models.CharField(max_length=5)
+
+    objects = models.DjongoManager()
 
     def __eq__(self, other):
         return (isinstance(other, EmbedModel) and
@@ -78,6 +86,8 @@ class ContainerModel(models.Model):
     _id = models.ObjectIdField()
     embed_field = models.EmbeddedModelField(model_container=EmbedModel)
 
+    objects = models.DjongoManager()
+
     def __str__(self):
         return str(self._id) + "-(" + str(self.embed_field) + ")"
 
@@ -87,11 +97,15 @@ class DeepContainerModel(models.Model):
     str_id = models.CharField(primary_key=True)
     deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
 
+    objects = models.DjongoManager()
+
 
 # Model for use w/ testing nested arrays of embedded models,
 class ArrayContainerModel(models.Model):
     _id = models.ObjectIdField()
     embed_list = models.ArrayModelField(model_container=EmbedModel)
+
+    objects = models.DjongoManager()
 
 
 # A model with both an abstract and non-abstract embedded model
@@ -106,21 +120,25 @@ class DualEmbedModel(models.Model):
         model_container=EmbedModel
     )
 
+    objects = models.DjongoManager()
+
 
 # --- Relation Containing Models --- #
 # Model with a reverse relation (see RelationContainerModel)
 class ReverseRelatedModel(models.Model):
     _id = models.ObjectIdField()
     boolean = models.BooleanField(default=True)
-    # container_field = ... (given by `related_name` below)
+
+    objects = models.DjongoManager()
 
 
 # Model with most types of relations
 class RelationContainerModel(models.Model):
     _id = models.ObjectIdField()
     fk_field = models.ForeignKey(to=GenericModel,
-                                 on_delete=models.CASCADE,
-                                 related_name='+')
+                                 on_delete=models.CASCADE)
     mfk_field = models.ManyToManyField(to=ReverseRelatedModel,
                                        blank=True,
                                        related_name='container_field')
+
+    objects = models.DjongoManager()
