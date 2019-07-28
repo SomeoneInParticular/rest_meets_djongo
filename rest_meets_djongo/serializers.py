@@ -117,12 +117,13 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     # Easy trigger variable for use in inherited classes (IE EmbeddedModels)
     _saving_instances = True
 
-    def recursive_save(self, validated_data, instance=None):
+    def build_instance_data(self, validated_data, instance=None):
         """
         Recursively traverses provided validated data, creating
         EmbeddedModels w/ the correct class as it does so
 
-        Returns a Model instance of the model designated by the user
+        Returns a dictionary of model data, for use w/ creating or
+        updating instances of the intended model
         """
         obj_data = {}
 
@@ -132,11 +133,12 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
                 # For other embedded models, recursively build their fields too
                 if isinstance(field, EmbeddedModelSerializer):
-                    new_instance = None
                     if instance is not None:
                         field_obj = get_model_meta(instance).get_field(key)
-                        new_instance = field_obj.value_from_object(instance)
-                    obj_data[key] = field.recursive_save(val, new_instance)
+                        embed_instance = field_obj.value_from_object(instance)
+                        obj_data[key] = field.update(embed_instance, val)
+                    else:
+                        obj_data[key] = field.create(val)
 
                 # Build defaults for EmbeddedModelFields
                 elif isinstance(field, EmbeddedModelField):
@@ -148,7 +150,8 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                       isinstance(field.child, EmbeddedModelSerializer)):
                     obj_data[key] = []
                     for datum in val:
-                        obj_data[key].append(field.child.recursive_save(datum))
+                        embed_instance = field.child.create(datum)
+                        obj_data[key].append(embed_instance)
 
                 # Other values, such as common datatypes
                 else:
@@ -159,18 +162,18 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
             except KeyError:
                 obj_data = val
 
-        # Update the provided instance, or create a new one
-        if instance is None:
-            instance = self.Meta.model(**obj_data)
-        else:
-            for key, val in obj_data.items():
-                setattr(instance, key, val)
+        # # Update the provided instance, or create a new one
+        # if instance is None:
+        #     instance = self.Meta.model(**obj_data)
+        # else:
+        #     for key, val in obj_data.items():
+        #         setattr(instance, key, val)
+        #
+        # # Save the instance (overridden for EmbeddedModels, below)
+        # if self._saving_instances:
+        #     instance.save()
 
-        # Save the instance (overridden for EmbeddedModels, below)
-        if self._saving_instances:
-            instance.save()
-
-        return instance
+        return obj_data
 
     def create(self, validated_data):
         raise_errors_on_nested_writes('create', self, validated_data)
@@ -178,7 +181,9 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         model_class = self.Meta.model
 
         try:
-            return self.recursive_save(validated_data)
+            data = self.build_instance_data(validated_data)
+            instance = model_class._default_manager.create(**data)
+            return instance
         except TypeError:
             tb = traceback.format_exc()
             msg = (
@@ -202,7 +207,12 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     def update(self, instance, validated_data):
         raise_errors_on_nested_writes('update', self, validated_data)
 
-        return self.recursive_save(validated_data, instance)
+        data = self.build_instance_data(validated_data, instance)
+        for key, val in data.items():
+            setattr(instance, key, val)
+        instance.save()
+
+        return instance
 
     def to_internal_value(self, data):
         """
@@ -250,7 +260,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         if meta_manager.is_model_abstract(self.Meta.model) and self._saving_instances:
             raise ValueError(
                 "Cannot use DjongoModelSerializer w/ Abstract Models.\n"
-                "Consider using EmbeddedModelSerializer instead."
+                "Consider using an EmbeddedModelSerializer instead."
             )
 
         # Fetch and check useful metadata parameters
@@ -562,6 +572,45 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
                 list(model_info.forward_relations.keys()) +
                 list(model_info.embedded.keys())
         )
+
+    def create(self, validated_data):
+        """
+        Slight tweak to not push to directly to database; the containing
+        model will do this for us
+        """
+        raise_errors_on_nested_writes('create', self, validated_data)
+
+        model_class = self.Meta.model
+
+        try:
+            data = self.build_instance_data(validated_data)
+            return model_class(**data)
+        except TypeError:
+            tb = traceback.format_exc()
+            msg = (
+                    'Got a `TypeError` when calling `%s.%s.create()`. '
+                    'This may be because you have a writable field on the '
+                    'serializer class that is not a valid argument to '
+                    '`%s.%s.create()`. You may need to make the field '
+                    'read-only, or override the %s.create() method to handle '
+                    'this correctly.\nOriginal exception was:\n %s' %
+                    (
+                        model_class.__name__,
+                        model_class._default_manager.name,
+                        model_class.__name__,
+                        model_class._default_manager.name,
+                        self.__class__.__name__,
+                        tb
+                    )
+            )
+            raise TypeError(msg)
+
+    def update(self, instance, validated_data):
+        data = self.build_instance_data(validated_data, instance)
+        for key, val in data.items():
+            setattr(instance, key, val)
+
+        return instance
 
     def get_unique_together_validators(self):
         # Skip these validators (ay be added again in future)

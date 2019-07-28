@@ -158,9 +158,7 @@ class TestIntegration(TestCase):
             **relation_data
         )
 
-        mtm_instance = test_models.ReverseRelatedModel.objects.create(
-            _id=ObjectId()
-        )
+        mtm_instance = test_models.ReverseRelatedModel.objects.create()
 
         instance = test_models.RelationContainerModel.objects.create(
             fk_field=basic_instance,

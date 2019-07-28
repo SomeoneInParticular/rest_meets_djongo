@@ -114,12 +114,13 @@ class TestIntegration(TestCase):
             EmbedModel(**embed_data_1), EmbedModel(**embed_data_2)
         ]
 
-        instance = ArrayContainerModel.objects.create(embed_list=embed_list)
-
         initial_data = {
-            'pk': instance.pk,
-            'embed_list': instance.embed_list
+            'embed_list': embed_list
         }
+
+        instance = ArrayContainerModel.objects.create(**initial_data)
+
+        initial_data.update({'pk': instance.pk})
 
         # Attempt to update the instance above
         class TestSerializer(rmd_ser.DjongoModelSerializer):
