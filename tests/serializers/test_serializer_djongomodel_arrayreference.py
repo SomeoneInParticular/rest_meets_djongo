@@ -6,8 +6,8 @@ from rest_framework import serializers as drf_ser
 
 from rest_meets_djongo import serializers as rmd_ser
 
-from .models import ArrayRelatedModel, ArrayRelationModel
-from .utils import format_dict, object_id_to_serial_string
+from tests.models import ArrayRelatedModel, ArrayRelationModel
+from tests.utilities import format_dict
 
 
 class TestIntegration(TestCase):

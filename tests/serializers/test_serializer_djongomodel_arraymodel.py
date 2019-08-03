@@ -5,8 +5,8 @@ from django.test import TestCase
 
 from rest_meets_djongo import serializers as rmd_ser
 
-from .models import ArrayContainerModel, EmbedModel
-from .utils import build_error_dict
+from tests.models import ArrayContainerModel, EmbedModel
+from tests.utilities import build_error_dict
 
 
 class TestIntegration(TestCase):

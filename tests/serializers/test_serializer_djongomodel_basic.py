@@ -8,7 +8,7 @@ from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests import models as test_models
-from .utils import format_dict
+from tests.utilities import format_dict
 
 
 class TestMapping(TestCase):
