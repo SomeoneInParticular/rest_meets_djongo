@@ -63,7 +63,6 @@ class OptionsModel(models.Model):
 # --- Embedded Model Containing Models --- #
 # Model for use w/ testing embedded models
 class EmbedModel(models.Model):
-    _id = models.ObjectIdField(primary_key=False)
     int_field = models.IntegerField()
     char_field = models.CharField(max_length=5)
 
@@ -75,7 +74,7 @@ class EmbedModel(models.Model):
                 self.int_field == other.int_field)
 
     def __str__(self):
-        return str(self._id) + ":" + str(self.int_field) + "-" + str(self.char_field)
+        return str(self.int_field) + "-" + str(self.char_field)
 
     class Meta:
         abstract = True
@@ -124,7 +123,7 @@ class DualEmbedModel(models.Model):
 
 
 # --- Relation Containing Models --- #
-# Model with a reverse relation (see RelationContainerModel)
+# Model related to by RelationContainerModel
 class ReverseRelatedModel(models.Model):
     _id = models.ObjectIdField()
     boolean = models.BooleanField(default=True)
@@ -132,7 +131,7 @@ class ReverseRelatedModel(models.Model):
     objects = models.DjongoManager()
 
 
-# Model with most types of relations
+# Model with representative types of relations
 class RelationContainerModel(models.Model):
     _id = models.ObjectIdField()
     fk_field = models.ForeignKey(to=GenericModel,
@@ -142,3 +141,24 @@ class RelationContainerModel(models.Model):
                                        related_name='container_field')
 
     objects = models.DjongoManager()
+
+
+# Model related to by ArrayRelationModel
+class ArrayRelatedModel(models.Model):
+    _id = models.ObjectIdField()
+    email = models.EmailField()
+
+    objects = models.DjongoManager()
+
+
+class ArrayRelationModel(models.Model):
+    _id = models.ObjectIdField()
+    int_val = models.IntegerField(default=-1234)
+    arr_relation = models.ArrayReferenceField(
+        to=ArrayRelatedModel,
+        blank=True,
+        on_delete=models.CASCADE
+    )
+
+    objects = models.DjongoManager()
+

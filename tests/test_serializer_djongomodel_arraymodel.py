@@ -22,13 +22,11 @@ class TestIntegration(TestCase):
                 fields = '__all__'
 
         embed_data_1 = {
-            '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'foo'
         }
 
         embed_data_2 = {
-            '_id': str(ObjectId()),
             'int_field': 4321,
             'char_field': 'bar'
         }
@@ -63,13 +61,11 @@ class TestIntegration(TestCase):
                 fields = '__all__'
 
         embed_data_1 = {
-            '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'foo'
         }
 
         embed_data_2 = {
-            '_id': str(ObjectId()),
             'int_field': 4321,
             'char_field': 'bar'
         }
@@ -99,13 +95,11 @@ class TestIntegration(TestCase):
         """
         # Set up the initial data
         embed_data_1 = {
-            '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'foo'
         }
 
         embed_data_2 = {
-            '_id': str(ObjectId()),
             'int_field': 4321,
             'char_field': 'bar'
         }
@@ -161,13 +155,11 @@ class TestIntegration(TestCase):
                 fields = '__all__'
 
         embed_data_1 = {
-            '_id': str(ObjectId()),
             'int_field': 2147483650,  # Invalid, integer above max
             'char_field': 'foo-fab'  # Invalid, string too large
         }
 
         embed_data_2 = {
-            '_id': str(ObjectId()),
             'int_field': 4321,
             'char_field': 'bar-baz',  # Invalid, string too large
         }

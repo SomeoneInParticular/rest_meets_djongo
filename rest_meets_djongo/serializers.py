@@ -110,6 +110,9 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     # Class for creating fields for embedded models w/o a serializer
     serializer_generic_embed = EmbeddedModelField
 
+    # Class for creating array model fields w/o a serializer
+    serializer_array_embed = ArrayModelField
+
     # Class for creating nested fields for embedded model fields
     # Defaults to EmbeddedModelSerializer or ArrayModelField
     serializer_nested_embed = None
@@ -161,17 +164,6 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
             # appear in future)
             except KeyError:
                 obj_data = val
-
-        # # Update the provided instance, or create a new one
-        # if instance is None:
-        #     instance = self.Meta.model(**obj_data)
-        # else:
-        #     for key, val in obj_data.items():
-        #         setattr(instance, key, val)
-        #
-        # # Save the instance (overridden for EmbeddedModels, below)
-        # if self._saving_instances:
-        #     instance.save()
 
         return obj_data
 
@@ -537,7 +529,10 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         return field_class, field_kwargs
 
     def build_root_embed_field(self, field_name, embed_info):
-        field_class = self.serializer_generic_embed
+        if embed_info.is_array:
+            field_class = self.serializer_array_embed
+        else:
+            field_class = self.serializer_generic_embed
         field_kwargs = kwarg_manager.get_generic_embed_kwargs(embed_info)
         return field_class, field_kwargs
 

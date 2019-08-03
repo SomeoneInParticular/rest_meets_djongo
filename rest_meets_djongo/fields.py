@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 
 class ObjectIdField(serializers.Field):
-    """ Serializer int_field for Djongo ObjectID fields """
+    """ Serializer field for Djongo ObjectID fields """
 
     def to_internal_value(self, data):
         try:
@@ -91,6 +91,11 @@ class EmbeddedModelField(serializers.Field):
     which do not have an explicit serializer attached to them
     """
 
+    default_error_messages = {
+        'not_a_dict': serializers.DictField.default_error_messages['not_a_dict'],
+        'not_model': _('Expected a Model instance, but got `{input_cls}`'),
+    }
+
     def __init__(self, model_field, **kwargs):
         if not isinstance(model_field, models.EmbeddedModelField):
             raise TypeError(
@@ -100,11 +105,6 @@ class EmbeddedModelField(serializers.Field):
                 ))
         self.model_field = model_field
         super(EmbeddedModelField, self).__init__(**kwargs)
-
-    default_error_messages = {
-        'not_a_dict': serializers.DictField.default_error_messages['not_a_dict'],
-        'not_model': _('Expected a Model instance, but got `{input_cls}`'),
-    }
 
     def to_internal_value(self, data):
         if not isinstance(data, dict):

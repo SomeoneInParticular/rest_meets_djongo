@@ -16,7 +16,6 @@ from tests import models as test_models
 
 class TestEmbeddedModelField(TestCase):
     obj_data = {
-        '_id': ObjectId(),
         'int_field': 123,
         'char_field': "Hello"
     }

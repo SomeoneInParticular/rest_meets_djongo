@@ -10,7 +10,7 @@ from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests import models as test_models
-from .utils import expect_dict_to_str
+from .utils import format_dict
 
 
 class TestMapping(TestCase):
@@ -36,7 +36,7 @@ class TestMapping(TestCase):
                           'required=False)'),
         }
 
-        expect_str = expect_dict_to_str(expected_dict)
+        expect_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expect_str == observed_str
@@ -59,7 +59,7 @@ class TestMapping(TestCase):
             # to predict how they should be parsed)
         }
 
-        expected_str = expect_dict_to_str(expect_dict)
+        expected_str = format_dict(expect_dict)
 
         observed_str = str(TestSerializer().get_fields())
 
@@ -79,7 +79,7 @@ class TestMapping(TestCase):
             'fk_field': 'PrimaryKeyRelatedField(queryset=GenericModel.objects.all())',
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
 
         observed_str = str(TestSerializer().get_fields())
 
@@ -104,7 +104,7 @@ class TestMapping(TestCase):
                           'required=False)'),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -270,7 +270,7 @@ class TestIntegration(TestCase):
             'mfk_field': [mtm_model_data]
         }
 
-        expected_str = expect_dict_to_str(expected_data)
+        expected_str = format_dict(expected_data)
         observed_str = str(serializer.data)
 
         assert expected_str == observed_str
@@ -421,7 +421,7 @@ class TestIntegration(TestCase):
         # One-to-one/many fields do not get object managers
         assert getattr(instance, 'fk_field', None) is None
 
-        # Many-to-one/many fields get object managers
+        # Many-to-many fields object manager
         assert list(instance.mfk_field.all()) == []
 
         # Confirm that this default read-only setup can be overridden

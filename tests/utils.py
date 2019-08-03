@@ -3,7 +3,7 @@ from bson import ObjectId
 from rest_framework.exceptions import ErrorDetail
 
 
-def expect_dict_to_str(expect_dict):
+def format_dict(expect_dict):
     """
     Helper function to allow the user to provide a string depicting
     exactly what is expected
@@ -15,16 +15,22 @@ def expect_dict_to_str(expect_dict):
     expect_list = []
 
     for name, val in expect_dict.items():
-        str_val = "'" + name + "': "
         if isinstance(val, str):
-            str_val += val
+            pass
         elif isinstance(val, ObjectId):
-            str_val += ("'" + str(val) + "'")
+            val = object_id_to_serial_string(val)
         else:
-            str_val += str(val)
+            val = str(val)
+        str_val = f"'{name}': {val}"
         expect_list.append(str_val)
 
-    return '{' + ', '.join(expect_list) + '}'
+    ret = "{" + ", ".join(expect_list) + "}"
+    return ret
+
+
+def object_id_to_serial_string(val):
+    ret = "'" + str(val) + "'"
+    return ret
 
 
 def build_error_dict(errors):

@@ -95,13 +95,13 @@ def _build_generic_field_info(opts):
             forward_relations[field.name] = model_meta.RelationInfo(
                 model_field=field,
                 related_model=field.remote_field.model,
-                to_many=False,
+                to_many=isinstance(field, djm_fields.ArrayReferenceField),
                 to_field=to_field,
                 has_through_model=False,
                 reverse=False
             )
         # Embedded model field (array or singular)
-        elif getattr(field, 'model_container', False):
+        elif hasattr(field, 'model_container'):
             embedded_fields[field.name] = EmbedInfo(
                 model_field=field,
                 is_array=isinstance(field, djm_fields.ArrayModelField)

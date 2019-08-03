@@ -8,7 +8,7 @@ from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests import models as test_models
-from .utils import expect_dict_to_str
+from .utils import format_dict
 
 
 class TestMapping(TestCase):
@@ -30,7 +30,7 @@ class TestMapping(TestCase):
             'char_field': drf_fields.CharField(max_length=5),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         # String comparision prevents the fields being different (identical)
@@ -84,7 +84,7 @@ class TestMapping(TestCase):
                            "validators=[<UniqueValidator(queryset=OptionsModel.objects.all())>])"),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -104,7 +104,7 @@ class TestMapping(TestCase):
                                                  min_value=-2147483648),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -124,7 +124,7 @@ class TestMapping(TestCase):
             'char_field': drf_fields.CharField(max_length=5),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -233,7 +233,7 @@ class TestMapping(TestCase):
                      "<django.db.models.fields.UUIDField: uuid>)"),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(ChildSerializer().get_fields())
 
         assert expected_str == observed_str

@@ -7,11 +7,11 @@ from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests import models as test_models
-from .utils import expect_dict_to_str
+from .utils import format_dict
 
 
 class TestMapping(TestCase):
-    def test_generic_embed(self):
+    def test_common_embed(self):
         """
         Confirm that the serializer handles embedded models as intended
 
@@ -34,12 +34,12 @@ class TestMapping(TestCase):
             'embed_field': EmbeddedSerializer(allow_null=True, required=False)
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
 
-    def test_deep_embed(self):
+    def test_nested_embed(self):
         """
         Confirm that embedded models within embedded models are still
         mapped correctly by the serializer
@@ -62,12 +62,12 @@ class TestMapping(TestCase):
             'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
 
-    def test_explicit_serializer_embed(self):
+    def test_explicit_embed(self):
         """
         Confirm that serializers can handle user specified serializers
         for embedded models
@@ -90,7 +90,7 @@ class TestMapping(TestCase):
             'embed_field': EmbedSerializer()
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -109,7 +109,7 @@ class TestMapping(TestCase):
             '_id': rmd_fields.ObjectIdField(read_only=True),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -128,7 +128,7 @@ class TestMapping(TestCase):
             '_id': rmd_fields.ObjectIdField(read_only=True),
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -154,7 +154,7 @@ class TestMapping(TestCase):
                            "read_only=True)")
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
@@ -185,21 +185,20 @@ class TestMapping(TestCase):
             'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
-        expected_str = expect_dict_to_str(expected_dict)
+        expected_str = format_dict(expected_dict)
         observed_str = str(TestSerializer().get_fields())
 
         assert expected_str == observed_str
 
 
 class TestEmbeddingIntegration(TestCase):
-    def test_generic_retrieve(self):
+    def test_deep_retrieve(self):
         """
         Confirm that existing instances of models with other embedded
         models can be retrieved and serialized correctly
         """
         # Create the instance to attempt to serialize
         embed_data = {
-            '_id': ObjectId(),
             'int_field': 1234,
             'char_field': 'Embed'
         }
@@ -223,18 +222,17 @@ class TestEmbeddingIntegration(TestCase):
         # Confirm that the data was correctly serialized
         expected_data = {
             'embed_field': OrderedDict({
-                '_id': str(embed_data['_id']),
                 'int_field': embed_data['int_field'],
                 'char_field': embed_data['char_field']
             })
         }
 
-        expected_str = expect_dict_to_str(expected_data)
+        expected_str = format_dict(expected_data)
         observed_str = str(serializer.data)
 
         assert expected_str == observed_str
 
-    def test_generic_create(self):
+    def test_deep_create(self):
         """
         Confirm that new instances of models with embedded models can
         be generated and saved correctly from raw data
@@ -263,14 +261,13 @@ class TestEmbeddingIntegration(TestCase):
         assert instance.embed_field.int_field == embed_data['int_field']
         assert instance.embed_field.char_field == embed_data['char_field']
 
-    def test_generic_update(self):
+    def test_deep_update(self):
         """
         Confirm that existing instances of models with embedded models
         can be updated when provided with new raw data
         """
         # Initial (to-be-updated) instance creation
         initial_embed_data = {
-            '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'Embed'
         }
@@ -312,14 +309,13 @@ class TestEmbeddingIntegration(TestCase):
         assert instance.embed_field.int_field == new_embed_data['int_field']
         assert instance.embed_field.char_field == new_embed_data['char_field']
 
-    def test_generic_partial_update(self):
+    def test_deep_partial_update(self):
         """
         Confirm that existing instances of models with embedded models
         can be updated when provided with new partial data
         """
         # Initial (to-be-updated) instance creation
         initial_embed_data = {
-            '_id': str(ObjectId()),
             'int_field': 1234,
             'char_field': 'Embed'
         }
