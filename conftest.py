@@ -1,3 +1,11 @@
+import pytest
+
+
+# def pytest_collection_modifyitems(items):
+#     for item in items:
+#         print(item)
+
+
 def pytest_configure():
     from django.conf import settings
 
