@@ -7,7 +7,7 @@ from rest_framework import serializers as drf_ser
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests.models import ArrayRelatedModel, ArrayRelationModel
-from tests.utilities import format_dict
+from tests.utils import format_dict
 
 
 class TestIntegration(TestCase):

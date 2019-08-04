@@ -6,7 +6,7 @@ from rest_meets_djongo import meta_manager
 from tests import models as test_models
 
 
-class TestMetaManagerUtils(TestCase):
+class TestMetaManager(TestCase):
 
     basic_model = test_models.GenericModel()
     obj_id_pk_model = test_models.ObjIDModel()
