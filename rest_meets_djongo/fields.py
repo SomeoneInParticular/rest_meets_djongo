@@ -93,7 +93,8 @@ class EmbeddedModelField(serializers.Field):
 
     default_error_messages = {
         'not_a_dict': serializers.DictField.default_error_messages['not_a_dict'],
-        'not_model': _('Expected a Model instance, but got `{input_cls}`'),
+        'not_model': _('Expected a Djongo model instance, found `{input_cls}`'),
+        'wrong_model': _('Expected a `{target_cls}` instance, but found `{input_cls}`')
     }
 
     def __init__(self, model_field, **kwargs):
@@ -116,7 +117,13 @@ class EmbeddedModelField(serializers.Field):
         if not isinstance(value, models.Model):
             self.fail('not_model', input_cls=type(value).__name__)
 
-        fields = self.model_field.model_container._meta.get_fields()
+        model_container = self.model_field.model_container
+        if not isinstance(value, model_container):
+            self.fail('wrong_model',
+                      target_cls=model_container.__name__,
+                      input_cls=type(value).__name__)
+
+        fields = model_container._meta.get_fields()
         data = {}
 
         for field in fields:

@@ -25,6 +25,7 @@ class TestObjectIDField(object):
     def errors(self, build_tuple):
         from bson.errors import InvalidId
         from rest_framework.exceptions import ValidationError
+
         err_dict = {
             'InvalidId': InvalidId,
             'ValidationError': ValidationError
