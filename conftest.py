@@ -1,9 +1,19 @@
 import pytest
 
 
-# def pytest_collection_modifyitems(items):
-#     for item in items:
-#         print(item)
+@pytest.fixture(scope='session')
+def build_tuple():
+    """Enables automatic building of named tuples for use w/ other fixtures"""
+    from collections import namedtuple
+
+    def _build_tuple(name, val_dict):
+        val_names = [val for val in val_dict.keys()]
+        ValTuple = namedtuple(name, val_names)
+        val_tuple = ValTuple(**val_dict)
+
+        return val_tuple
+
+    return _build_tuple
 
 
 def pytest_configure():

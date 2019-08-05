@@ -2,56 +2,61 @@ from djongo import models as djm_models
 
 from rest_meets_djongo import meta_manager
 
-import pytest
+from pytest import fixture, mark
 
 
-@pytest.mark.core
+@mark.core
 class TestMetaManager(object):
-    @pytest.fixture
-    def generic_fixture(self):
+    @fixture(scope='class')
+    def generic(self):
         """Provides GenericModel usage for the test"""
         from tests.models import GenericModel
         return GenericModel()
 
-    @pytest.fixture
-    def object_id_fixture(self):
+    @fixture(scope='class')
+    def object_id(self):
         """Provides ObjIDModel usage for the test"""
         from tests.models import ObjIDModel
         return ObjIDModel()
 
-    @pytest.fixture
-    def base_relational_fixture(self):
+    @fixture(scope='class')
+    def base_relation(self):
         """Provides relation model usage for the test"""
         from tests.models import RelationContainerModel
         return RelationContainerModel()
 
-    @pytest.fixture
-    def mfk_field_fixture(self, base_relational_fixture):
+    @fixture(scope='class')
+    def reverse_relation(self):
         """Allows for relational fixture's w/ many-to-one field testing"""
         from tests.models import ReverseRelatedModel
-        return base_relational_fixture, ReverseRelatedModel()
+        return ReverseRelatedModel()
 
-    @pytest.fixture
-    def embedded_fixture(self):
-        from tests.models import ContainerModel, EmbedModel
-        return ContainerModel(), EmbedModel()
+    @fixture(scope='class')
+    def container(self):
+        from tests.models import ContainerModel
+        return ContainerModel()
 
-    @pytest.mark.basic
-    def test_get_model_meta(self, generic_fixture):
+    @fixture(scope='class')
+    def embedded(self):
+        from tests.models import EmbedModel
+        return EmbedModel()
+
+    @mark.basic
+    def test_get_model_meta(self, generic):
         """
         Here just to throw an error if Django changes how meta is accessed
         """
-        test_meta = meta_manager.get_model_meta(generic_fixture)
-        real_meta = generic_fixture._meta
+        test_meta = meta_manager.get_model_meta(generic)
+        real_meta = generic._meta
 
         assert test_meta.__eq__(real_meta)
 
-    @pytest.mark.basic
-    def test_get_generic_model_field_info(self, generic_fixture):
+    @mark.basic
+    def test_get_generic_model_field_info(self, generic):
         """
         Confirm that models with only basic field types are properly managed
         """
-        field_info = meta_manager.get_field_info(generic_fixture)
+        field_info = meta_manager.get_field_info(generic)
 
         # Confirm that the automatically generated 'pk' field was captured
         assert field_info.pk.name == 'id'
@@ -113,13 +118,13 @@ class TestMetaManager(object):
         for key, val in field_and_pk_type_dict.items():
             assert isinstance(field_info.fields_and_pk[key], val)
 
-    @pytest.mark.basic
-    def test_get_field_info_unique_pk(self, object_id_fixture):
+    @mark.basic
+    def test_get_field_info_unique_pk(self, object_id):
         """
         Confirm that, if the pk is explicitly set in a model, it is caught
         and sorted correctly when fetching field info for said model
         """
-        field_info = meta_manager.get_field_info(object_id_fixture)
+        field_info = meta_manager.get_field_info(object_id)
 
         # Confirm that the user specified PK was caught
         assert field_info.pk.name == '_id'  # Custom name specified by user
@@ -132,48 +137,48 @@ class TestMetaManager(object):
         assert '_id' in field_info.fields_and_pk
         assert field_info.fields_and_pk['pk'].name == '_id'
 
-    @pytest.mark.relation
-    def test_get_fk_relation_field_info(self, generic_fixture, base_relational_fixture):
+    @mark.relation
+    def test_get_fk_relation_field_info(self, generic, base_relation):
         """
         Tests that one-to-many relation information is correctly sorted
         and managed by the get_field_info() function
         """
-        field_info = meta_manager.get_field_info(base_relational_fixture)
+        field_info = meta_manager.get_field_info(base_relation)
 
         # Confirm that one-to-many relations are handled correctly
         fk_field_info = field_info.relations['fk_field']
         assert isinstance(fk_field_info.model_field, djm_models.ForeignKey)
-        assert fk_field_info.related_model == generic_fixture.__class__
+        assert fk_field_info.related_model == generic.__class__
         assert not fk_field_info.to_many
         assert (fk_field_info.to_field == 'id')  # Primary key in related model
         assert not fk_field_info.has_through_model
         assert not fk_field_info.reverse
 
-    @pytest.mark.relation
-    def test_get_mtm_relation_field_info(self, mfk_field_fixture):
+    @mark.relation
+    def test_get_mtm_relation_field_info(self, base_relation, reverse_relation):
         """
         Tests that many-to-many relation information is correctly sorted
         and managed by the get_field_info() function
         """
-        field_info = meta_manager.get_field_info(mfk_field_fixture[0])
+        field_info = meta_manager.get_field_info(base_relation)
 
         # Confirm that the one-to-many relation was handled correctly
         mfk_field_info = field_info.relations['mfk_field']
         assert isinstance(mfk_field_info.model_field, djm_models.ManyToManyField)
-        assert mfk_field_info.related_model == mfk_field_fixture[1].__class__
+        assert mfk_field_info.related_model == reverse_relation.__class__
         assert mfk_field_info.to_many
         # Many-to-Many fields lack a `to_field` parameter
         assert not mfk_field_info.has_through_model
         assert not mfk_field_info.reverse
 
-    @pytest.mark.embed
-    def test_get_embed_model_field_info(self, embedded_fixture):
+    @mark.embed
+    def test_get_embed_model_field_info(self, container, embedded):
         """
         Tests that embedded model fields are correctly caught and managed
         """
-        field_info = meta_manager.get_field_info(embedded_fixture[0])
+        field_info = meta_manager.get_field_info(container)
 
         # Confirm that embedded model info was caught correctly
         embed_field_info = field_info.embedded['embed_field']
-        assert embed_field_info.model_field.model_container == embedded_fixture[1].__class__
+        assert embed_field_info.model_field.model_container == embedded.__class__
         assert not embed_field_info.is_array
