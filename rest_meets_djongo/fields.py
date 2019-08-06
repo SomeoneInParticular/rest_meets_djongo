@@ -13,7 +13,6 @@ class ObjectIdField(serializers.Field):
     """
     Serializer field for Djongo ObjectID fields
     """
-
     def to_internal_value(self, data):
         """Serialized -> Database"""
         try:
@@ -40,7 +39,6 @@ class DjongoField(serializers.Field):
     Djongo updating and us updating to compensate, or in the case of
     custom fields added by the user)
     """
-
     def __init__(self, model_field, **kwargs):
         self.model_field = model_field
         super(DjongoField, self).__init__(**kwargs)
@@ -54,6 +52,7 @@ class DjongoField(serializers.Field):
         Utilizes Djongo's field override, when needed, converting from
         a dict into a new object instance
         """
+        self.run_validators(data)
         return self.model_field.to_python(data)
 
     def to_representation(self, value):
@@ -87,7 +86,6 @@ class EmbeddedModelField(serializers.Field):
     Used internally by EmbeddedModelSerializer to map EmbeddedModels
     which do not have an explicit serializer attached to them
     """
-
     default_error_messages = {
         'not_a_dict': serializers.DictField.default_error_messages['not_a_dict'],
         'not_model': _('Expected a Djongo model instance, found `{input_cls}`'),

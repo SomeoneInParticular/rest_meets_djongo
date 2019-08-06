@@ -1,29 +1,36 @@
-"""
-test_djongomodelfield
----------------------
-
-Tests DRF serialization for our version of Model Fields, DjongoModelField
-"""
-
-from django.core.exceptions import ValidationError
-from django.test import TestCase
-from rest_framework import fields
-import pytest
-
 from rest_meets_djongo.fields import DjongoField
+from rest_meets_djongo.meta_manager import get_model_meta
 
-from tests import models
+from tests.models import ObjIDModel
+
+from pytest import fixture, mark, raises
 
 
-# Example model with which to use as the basis of serialization
-class TestDjongoField(TestCase):
+@mark.basic
+class TestDjongoField(object):
 
-    test_model = models.ObjIDModel
+    model_meta = get_model_meta(ObjIDModel())
 
-    int_field = DjongoField(model_field=test_model._meta.get_field('int_field'))
-    char_field = DjongoField(model_field=test_model._meta.get_field('char_field'))
+    int_field = DjongoField(model_field=model_meta.get_field('int_field'))
+    char_field = DjongoField(model_field=model_meta.get_field('char_field'))
 
-    def test_to_internal_value(self):
+    @fixture(scope='class')
+    def drf_int_field(self):
+        from rest_framework.fields import IntegerField
+        return IntegerField()
+
+    @fixture(scope='class')
+    def errors(self, build_tuple):
+        from django.core.exceptions import ValidationError
+
+        err_dict = {
+            'ValidationError': ValidationError,
+            'TypeError': TypeError
+        }
+
+        return build_tuple('Errors', err_dict)
+
+    def test_to_internal_value(self, drf_int_field):
         """
         The int_field, bound to a underlying Djongo int_field, is mapped and
         interpreted as if it were that int_field
@@ -32,43 +39,46 @@ class TestDjongoField(TestCase):
         adding a new int_field type which has not yet been accommodated for
         in the package yet
         """
-        obj = 14342
+        int_val = 14342
 
-        obj_data = fields.IntegerField().to_internal_value(obj)
-        new_data = self.int_field.to_internal_value(obj)
+        int_data = drf_int_field.to_internal_value(int_val)
+        new_data = self.int_field.to_internal_value(int_val)
 
-        assert obj_data == new_data
+        assert int_data == new_data
 
-    def test_to_representation(self):
+    def test_to_representation(self, drf_int_field):
         """
         Confirm that the int_field can be serialized from it initial value
         """
-        obj = 15465
+        int_val = 15465
 
-        obj_val = fields.IntegerField().to_representation(obj)
-        ref = self.int_field.to_representation(obj_val)
+        interim = drf_int_field.to_representation(int_val)
+        new_val = self.int_field.to_representation(interim)
 
-        assert ref.__eq__(obj)
+        assert new_val.__eq__(int_val)
 
     def test_conversion_equivalence(self):
-        obj = 5465423
+        int_val = 5465423
 
-        obj_data = self.int_field.to_representation(obj)
-        new_obj = self.int_field.to_internal_value(obj_data)
+        rep_val = self.int_field.to_representation(int_val)
+        new_val = self.int_field.to_internal_value(rep_val)
 
-        assert obj.__eq__(new_obj)
+        assert int_val.__eq__(new_val)
 
-    def test_invalid_rejection(self):
-        bad_int = "100,543"
+    @mark.error
+    def test_validation(self, errors):
+        big_int = 9876543210  # Too large
+        with raises(errors.ValidationError):
+            self.int_field.to_internal_value(big_int)
 
-        with pytest.raises(ValidationError):
-            self.int_field.to_internal_value(bad_int)
-
-    def test_validation(self):
-        invalid_val = "Hello World!"
-
-        with pytest.raises(TypeError):
+        invalid_val = "Hello"  # Not an integer
+        with raises(errors.TypeError):
             self.int_field.run_validators(invalid_val)
 
-        with pytest.raises(ValidationError):
-            self.char_field.run_validators(invalid_val)
+        bad_string = "WAY TO LONG"  # Larger than the char count limit
+        with raises(errors.ValidationError):
+            self.char_field.run_validators(bad_string)
+
+        invalid_string = ObjIDModel()  # Not a string
+        with raises(errors.TypeError):
+            self.char_field.run_validators(invalid_string)
