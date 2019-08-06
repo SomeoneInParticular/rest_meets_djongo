@@ -6,11 +6,16 @@ from django.utils.translation import ugettext_lazy as _
 from djongo import models
 from rest_framework import serializers
 
+from .meta_manager import get_model_meta
+
 
 class ObjectIdField(serializers.Field):
-    """ Serializer field for Djongo ObjectID fields """
+    """
+    Serializer field for Djongo ObjectID fields
+    """
 
     def to_internal_value(self, data):
+        """Serialized -> Database"""
         try:
             return ObjectId(smart_text(data))
         except InvalidId:
@@ -19,6 +24,7 @@ class ObjectIdField(serializers.Field):
             )
 
     def to_representation(self, value):
+        """Database -> Serialized"""
         if not ObjectId.is_valid(value):
             raise InvalidId
         return smart_text(value)
@@ -45,8 +51,8 @@ class DjongoField(serializers.Field):
     def to_internal_value(self, data):
         """ Convert the data into the relevant python class instance
 
-        Utilizes Djongo int_field overriding, when needed, converting from
-        a dict into a new object instance in that situation
+        Utilizes Djongo's field override, when needed, converting from
+        a dict into a new object instance
         """
         return self.model_field.to_python(data)
 
@@ -55,15 +61,7 @@ class DjongoField(serializers.Field):
 
         DRF ModelFields use 'value_to_string' for this, but Djongo fields
         lack this. Instead, we utilize smart_text to convert the object
-        into text.
-
-        We also check our model_field for validation on
-
-        Note; the value in this case is an Object (the entity to be
-        converted into a serializable form), NOT a primitive type. This
-        means we are making an assumption on how the object is to be
-        serialized (all fields which are read-only or read-write) until
-        explicitly told otherwise by the user (via a serializer)
+        into a textual representation.
         """
         return smart_text(value, strings_only=True)
 
@@ -73,18 +71,17 @@ class DjongoField(serializers.Field):
         Borrows Djongo's field validation for this procedure, as well
         as natively added validators for the field, if any (the latter
         simply catches errors which are not implicitly validation-type
-        errors, IE attempts to convert Char -> Int)
+        errors, IE attempts to convert String -> Integer)
         """
         self.model_field.run_validators(value)
         super(DjongoField, self).run_validators(value)
 
 
 class EmbeddedModelField(serializers.Field):
-    """ Field for Djongo EmbeddedModel fields, without specialized
-    functions
+    """ Generic field for Djongo EmbeddedModel fields
 
     Acts similarly to DictField, with reliance on the passed in model
-    (model_field) to aid in conversion to the embedded model (borrowing
+    (model_field) to aid in conversion to correct model type (borrowing
     its constructor to do so)
 
     Used internally by EmbeddedModelSerializer to map EmbeddedModels
@@ -108,12 +105,14 @@ class EmbeddedModelField(serializers.Field):
         super(EmbeddedModelField, self).__init__(**kwargs)
 
     def to_internal_value(self, data):
+        """Serialized -> Database"""
         if not isinstance(data, dict):
             self.fail('not_a_dict', input_type=type(data).__name__)
         model_class = self.model_field.model_container
         return model_class(**data)
 
     def to_representation(self, value):
+        """Database -> Serialized"""
         if not isinstance(value, models.Model):
             self.fail('not_model', input_cls=type(value).__name__)
 
@@ -123,7 +122,7 @@ class EmbeddedModelField(serializers.Field):
                       target_cls=model_container.__name__,
                       input_cls=type(value).__name__)
 
-        fields = model_container._meta.get_fields()
+        fields = get_model_meta(model_container).get_fields()
         data = {}
 
         for field in fields:
@@ -134,13 +133,14 @@ class EmbeddedModelField(serializers.Field):
 
 
 class ArrayModelField(serializers.Field):
-    """ Field for Djongo ArrayModelFields, without specialized functions
+    """ Field for generic Djongo ArrayModelFields
 
-    Acts akin to a DRF List field, using the passed in model (model_field)
-    to aid in the conversion to the listed model and back
+    Acts akin to a DRF List field, using the passed in model
+    (model_field) to aid in the conversion of list elements to and from
+    a their serialized form
 
-    Used internally for RMD serializers later, primarily for mapping fields
-    which do not have explicit serialization set up already
+    Used internally for RMD serializers later, primarily for mapping
+    fields which do not have explicit serialization set up already
     """
     def __init__(self, model_field, **kwargs):
         if not isinstance(model_field, models.ArrayModelField):
@@ -157,6 +157,7 @@ class ArrayModelField(serializers.Field):
     }
 
     def to_internal_value(self, data):
+        """Serialized -> Database"""
         if not isinstance(data, list):
             self.fail('not_a_list', input_class=type(data).__name__)
         model_class = self.model_field.model_container
@@ -166,9 +167,10 @@ class ArrayModelField(serializers.Field):
         return val_list
 
     def to_representation(self, value):
+        """Database -> Serialized"""
         if not isinstance(value, list):
             self.fail('not_a_list', input_class=type(value).__name__)
-        fields = self.model_field.model_container._meta.get_fields()
+        fields = get_model_meta(self.model_field.model_container).get_fields()
         data_list = []
         for val in value:
             data = {}

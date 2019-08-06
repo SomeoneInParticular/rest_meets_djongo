@@ -74,7 +74,6 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     Automatically generates fields for the model, accounting for embedded
     model fields in the process
     """
-
     serializer_field_mapping = {
         # Original DRF field mappings (Django Derived)
         dja_fields.AutoField: drf_fields.IntegerField,
@@ -114,19 +113,19 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     serializer_array_embed = ArrayModelField
 
     # Class for creating nested fields for embedded model fields
-    # Defaults to EmbeddedModelSerializer or ArrayModelField
+    # Defaults to our version of EmbeddedModelField or ArrayModelField
     serializer_nested_embed = None
 
-    # Easy trigger variable for use in inherited classes (IE EmbeddedModels)
+    # Easy trigger variable for use in inherited classes (EmbeddedModels)
     _saving_instances = True
 
     def build_instance_data(self, validated_data, instance=None):
         """
-        Recursively traverses provided validated data, creating
-        EmbeddedModels w/ the correct class as it does so
+        Recursively traverses provided validated data, creating a
+        dictionary describing the target model in the process
 
         Returns a dictionary of model data, for use w/ creating or
-        updating instances of the intended model
+        updating instances of the target model
         """
         obj_data = {}
 
@@ -168,6 +167,10 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         return obj_data
 
     def create(self, validated_data):
+        """
+        Build a new instance of the target model w/ attributes matching
+        validated data for the model
+        """
         raise_errors_on_nested_writes('create', self, validated_data)
 
         model_class = self.Meta.model
@@ -197,6 +200,10 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
             raise TypeError(msg)
 
     def update(self, instance, validated_data):
+        """
+        Update an existing instance of the target model w/ attributes
+        provided from validated data
+        """
         raise_errors_on_nested_writes('update', self, validated_data)
 
         data = self.build_instance_data(validated_data, instance)
@@ -208,13 +215,14 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
     def to_internal_value(self, data):
         """
-        Borrows DRF's implimentation, but creates initial and validated
-        data for EmbeddedModels so recursive save can correctly use them
+        Borrows DRF's implementation, but creates initial and validated
+        data for EmbeddedModels so `build_instance_data` can use them
 
-        Arbitrary data is silently dropped from validated data, as to avoid
-        issues down the line (assignment to an attribute which doesn't exist)
+        Arbitrary data is silently dropped from validated data, as to
+        avoid issues down the line (assignment to an attribute which
+        doesn't exist)
         """
-
+        # Initial pass through for initial data writing
         for field in self._writable_fields:
             if (isinstance(field, EmbeddedModelSerializer) and
                     field.field_name in data):
@@ -222,6 +230,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
         ret = super(DjongoModelSerializer, self).to_internal_value(data)
 
+        # Secondary, post conversion pass to add initial data to validated data
         for field in self._writable_fields:
             if (isinstance(field, EmbeddedModelSerializer) and
                     field.field_name in ret):
@@ -231,8 +240,8 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
     def get_fields(self):
         """
-        An override of DRF to enable EmbeddedModelFields to be correctly
-        caught and built
+        An override of DRF's `get_fields` to enable EmbeddedModelFields
+        to be correctly caught and constructed
         """
         if self.url_field_name is None:
             self.url_field_name = api_settings.URL_FIELD_NAME
@@ -311,9 +320,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
     def get_field_names(self, declared_fields, info):
         """
-        Override of DRF's function, enabling EmbeddedModelFields to be
-        caught and handled. Some slight optimization is also provided.
-        (Useful given how many nested models may need to be iterated over)
+        Override of DRF's `get_field_names` function, enabling
+        EmbeddedModelFields to be caught and handled.
+
+        Some slight optimization is also provided. (Useful given how
+        many nested model fields may need to be iterated over)
 
         Will include only direct children of the serializer; no
         grandchildren are included by default
@@ -329,7 +340,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
             )
         )
 
-        # If the user specified a `fields` attribute in Meta
+        # Construct the list of fields to be serialized
         if fields is not None:
             # If the user just wants all fields...
             if fields == drf_ser.ALL_FIELDS:
@@ -357,7 +368,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                     'The `fields` option must be a list or tuple or "__all__". '
                     'Got {cls_name}.'.format(cls_name=type(fields).__name__)
                 )
-        # If the user specified an `exclude` attribute in Meta
+        # Strip out designated fields for serialization
         elif exclude is not None:
             fields = self.get_default_field_names(declared_fields, info)
 
@@ -383,7 +394,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                 )
 
                 fields.remove(field_name)
-        # If the user failed to provide either...
+        # If the user specify a set of fields to include/exclude
         else:
             raise AssertionError(
                 "Creating a ModelSerializer without either the 'fields' attribute "
@@ -394,11 +405,12 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                 )
             )
 
-        # Filter out child fields, which are automatically contained in a child
+        # Filter out child fields, which would be contained in the child
         # instance anyways
         return [name for name in fields if '.' not in name]
 
     def get_default_field_names(self, declared_fields, model_info):
+        """Provide the list of fields included when `__all__` is used"""
         return (
             [model_info.pk.name] +
             list(declared_fields.keys()) +
@@ -414,11 +426,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         Extracts fields, exclude, extra_kwargs, and validation methods
         for the parent serializer, related to the attributes of field
 
-        Used to enable automatic writable nested field construction below
-        """
-        # This should be called after self.get_fields(). Therefore, we
-        # assume that most field validation has already been done
+        Used to enable automatic writable nested field construction
 
+        This should be called after self.get_fields(). Therefore, we
+        assume that most field validation has already been done
+        """
         fields = getattr(self.Meta, 'fields', None)
         exclude = getattr(self.Meta, 'exclude', None)
 
@@ -465,9 +477,9 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
     def apply_customization(self, serializer, customization):
         """
         Applies customization from nested fields to the serializer
+
+        Assumes basic verification has already been done
         """
-        # Apply fields/exclude
-        # Assumes basic verification has already been done
         if customization.fields is not None:
             serializer.Meta.fields = customization.fields
         else:
@@ -529,6 +541,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         return field_class, field_kwargs
 
     def build_root_embed_field(self, field_name, embed_info):
+        """Build a field instance for when the max `embed_depth` is reached"""
         if embed_info.is_array:
             field_class = self.serializer_array_embed
         else:
@@ -537,6 +550,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         return field_class, field_kwargs
 
     def build_nested_embed_field(self, field_name, embed_info, depth):
+        """Create a serializer for nested embedded model fields"""
         subclass = self.serializer_nested_embed or EmbeddedModelSerializer
 
         class EmbeddedSerializer(subclass):

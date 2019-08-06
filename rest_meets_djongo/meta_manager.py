@@ -30,8 +30,10 @@ EmbedInfo = namedtuple('EmbedInfo', [
 
 
 def get_model_meta(model):
-    # Simply fetches the meta attribute of the model, so PEP8 checks will
-    # stop screaming at me as much
+    """
+    Simply fetches the meta attribute of the model, so PEP8 checks will
+    stop screaming at me so much
+    """
     return model._meta
 
 
@@ -75,7 +77,7 @@ def get_field_info(model):
 
 def _build_generic_field_info(opts):
     """
-    Helper function which builds fields based on a model's
+    Helper function which builds fields based on a model's meta
 
     Slightly optimized variation of DRF's model_meta util functions
 
@@ -88,8 +90,9 @@ def _build_generic_field_info(opts):
     forward_relations = {}
     embedded_fields = {}
 
+    # Initial pass for non-many-to-many type fields
     for field in [field for field in opts.fields if field.serialize]:
-        # Forward, one-to-one, relation parsing
+        # Forward, one-to-one, and relation parsing
         if field.remote_field:
             to_field = getattr(field, 'to_fields')[0]
             forward_relations[field.name] = model_meta.RelationInfo(
@@ -110,6 +113,7 @@ def _build_generic_field_info(opts):
         else:
             basic_fields[field.name] = field
 
+    # Second pass for many-to-many fields
     for field in [field for field in opts.many_to_many if field.serialize]:
         forward_relations[field.name] = model_meta.RelationInfo(
             model_field=field,
@@ -166,7 +170,9 @@ def _build_reverse_field_info(opts):
 def _merge_fields_and_pk(pk, fields):
     """
     Tweaked variant of DRF's model_meta function to accommodate for
-    abstract models (used by EmbeddedModelFields and EmbeddedModelSerializers)
+    abstract models
+
+    Used by EmbeddedModelFields and EmbeddedModelSerializers
     """
     fields_and_pk = {}
     fields_and_pk['pk'] = pk
@@ -179,7 +185,7 @@ def _merge_fields_and_pk(pk, fields):
 
 def _merge_relations(fwd_relations, rvs_relations):
     """
-    Tweak of DRF _merge_relationships to be more readable and slightly faster
+    Tweak of DRF's _merge_relationships to be more readable
     """
     relations = {}
     relations.update(fwd_relations)
