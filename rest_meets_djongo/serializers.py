@@ -575,6 +575,7 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
     _saving_instances = False
 
     def get_default_field_names(self, declared_fields, model_info):
+        """Modified to not include the `pk` attribute"""
         return (
                 list(declared_fields.keys()) +
                 list(model_info.fields.keys()) +
@@ -585,7 +586,7 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
     def create(self, validated_data):
         """
         Slight tweak to not push to directly to database; the containing
-        model will do this for us
+        model does this for us
         """
         raise_errors_on_nested_writes('create', self, validated_data)
 
@@ -615,6 +616,10 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
             raise TypeError(msg)
 
     def update(self, instance, validated_data):
+        """
+        Does not push the updated model to the database; the containing
+        instance will do this for us
+        """
         data = self.build_instance_data(validated_data, instance)
         for key, val in data.items():
             setattr(instance, key, val)
@@ -622,5 +627,5 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
         return instance
 
     def get_unique_together_validators(self):
-        # Skip these validators (ay be added again in future)
+        # Skip these validators (may be added again in future)
         return []
