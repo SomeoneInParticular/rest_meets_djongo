@@ -1,15 +1,9 @@
-"""
-test_embeddedmodelfield
------------------------
-
-Tests DRF serialization for EmbeddedModelFields
-"""
-
-from pytest import fixture, mark, raises
-
 from rest_meets_djongo.fields import EmbeddedModelField
+from rest_meets_djongo.meta_manager import get_model_meta
+
 from tests.models import ContainerModel, EmbedModel
 
+from pytest import fixture, mark
 
 @mark.embed
 class TestEmbeddedModelField(object):
@@ -19,7 +13,7 @@ class TestEmbeddedModelField(object):
     }
 
     instance = EmbedModel(**obj_data)
-    djm_embed = ContainerModel._meta.get_field('embed_field')
+    djm_embed = get_model_meta(ContainerModel).get_field('embed_field')
     rmd_embed = EmbeddedModelField(model_field=djm_embed)
 
     @fixture
@@ -50,7 +44,7 @@ class TestEmbeddedModelField(object):
         assert str(self.instance) == str(new_instance)
 
     @mark.error
-    def test_validation(self, errors):
+    def test_validation(self, raises):
         """
         Confirm that invalid objects are rejected when trying to
         serialize/de-serialize in a field which was not build for them
@@ -58,19 +52,19 @@ class TestEmbeddedModelField(object):
         # Non-models are rejected when attempting to serialize
         not_a_model = dict()
 
-        with raises(errors.ValidationError):
+        with raises.SerializerValidationError:
             self.rmd_embed.to_representation(not_a_model)
 
         # Non-dictionary values are rejected when building instances
         not_a_dict = 1234
 
-        with raises(errors.ValidationError):
+        with raises.SerializerValidationError:
             self.rmd_embed.to_internal_value(not_a_dict)
 
         # Models of the incorrect type are rejected
         wrong_model = ContainerModel()
 
-        with raises(errors.ValidationError):
+        with raises.SerializerValidationError:
             self.rmd_embed.to_representation(wrong_model)
 
         # Dictionaries denoting fields which do not exist are rejected
@@ -79,6 +73,6 @@ class TestEmbeddedModelField(object):
             'char_field': 'error'
         }
 
-        with raises(errors.TypeError):
+        with raises.TypeError:
             self.rmd_embed.to_internal_value(wrong_dict)
 

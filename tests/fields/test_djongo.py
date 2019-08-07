@@ -3,7 +3,7 @@ from rest_meets_djongo.meta_manager import get_model_meta
 
 from tests.models import ObjIDModel
 
-from pytest import fixture, mark, raises
+from pytest import fixture, mark
 
 
 @mark.basic
@@ -18,17 +18,6 @@ class TestDjongoField(object):
     def drf_int_field(self):
         from rest_framework.fields import IntegerField
         return IntegerField()
-
-    @fixture(scope='class')
-    def errors(self, build_tuple):
-        from django.core.exceptions import ValidationError
-
-        err_dict = {
-            'ValidationError': ValidationError,
-            'TypeError': TypeError
-        }
-
-        return build_tuple('Errors', err_dict)
 
     def test_to_internal_value(self, drf_int_field):
         """
@@ -58,6 +47,7 @@ class TestDjongoField(object):
         assert new_val.__eq__(int_val)
 
     def test_conversion_equivalence(self):
+        """Confirm that serializing the value """
         int_val = 5465423
 
         rep_val = self.int_field.to_representation(int_val)
@@ -66,19 +56,19 @@ class TestDjongoField(object):
         assert int_val.__eq__(new_val)
 
     @mark.error
-    def test_validation(self, errors):
+    def test_validation(self, raises):
         big_int = 9876543210  # Too large
-        with raises(errors.ValidationError):
+        with raises.ModelValidationError:
             self.int_field.to_internal_value(big_int)
 
         invalid_val = "Hello"  # Not an integer
-        with raises(errors.TypeError):
+        with raises.TypeError:
             self.int_field.run_validators(invalid_val)
 
         bad_string = "WAY TO LONG"  # Larger than the char count limit
-        with raises(errors.ValidationError):
+        with raises.ModelValidationError:
             self.char_field.run_validators(bad_string)
 
         invalid_string = ObjIDModel()  # Not a string
-        with raises(errors.TypeError):
+        with raises.TypeError:
             self.char_field.run_validators(invalid_string)

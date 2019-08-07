@@ -1,13 +1,6 @@
-"""
-test_objectidfield
-------------------
-
-Tests DRF serialization for Djongo ObjectID type fields
-"""
-
 from rest_meets_djongo.fields import ObjectIdField
 
-from pytest import fixture, mark, raises
+from pytest import fixture, mark
 
 
 @mark.basic
@@ -20,17 +13,6 @@ class TestObjectIDField(object):
     def object_id(self):
         from bson import ObjectId
         return ObjectId()
-
-    @fixture(scope='class')
-    def errors(self, build_tuple):
-        from bson.errors import InvalidId
-        from rest_framework.exceptions import ValidationError
-
-        err_dict = {
-            'InvalidId': InvalidId,
-            'ValidationError': ValidationError
-        }
-        return build_tuple('Errors', err_dict)
 
     def test_to_internal_value(self, object_id):
         """
@@ -67,17 +49,17 @@ class TestObjectIDField(object):
         assert object_id.__eq__(new_obj)
 
     @mark.error
-    def test_invalid_rejection(self, errors):
+    def test_validation(self, raises):
         """
         Confirm that invalid ObjectID values are rejected when
         attempting to serialize them
         """
         bad_key = "wrong"  # Too short, also incorrect format
 
-        with raises(errors.ValidationError):
+        with raises.SerializerValidationError:
             self.field.to_internal_value(bad_key)
 
         not_a_key = dict()  # Not an ObjectID or string-representation of one
 
-        with raises(errors.InvalidId):
+        with raises.InvalidId:
             self.field.to_representation(not_a_key)
