@@ -50,7 +50,7 @@ class TestEmbeddedModelField(object):
         assert str(self.instance) == str(new_instance)
 
     @mark.error
-    def test_invalid_rejection(self, errors):
+    def test_validation(self, errors):
         """
         Confirm that invalid objects are rejected when trying to
         serialize/de-serialize in a field which was not build for them

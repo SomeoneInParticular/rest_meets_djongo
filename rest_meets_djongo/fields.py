@@ -3,8 +3,10 @@ from bson.errors import InvalidId
 
 from django.utils.encoding import smart_text
 from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import ValidationError as dja_valid_error
 from djongo import models
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError as drf_valid_error
 
 from .meta_manager import get_model_meta
 
@@ -56,7 +58,7 @@ class DjongoField(serializers.Field):
         return self.model_field.to_python(data)
 
     def to_representation(self, value):
-        """ Converts the provided value into a serializable representation
+        """ Converts the provided data into a serializable representation
 
         DRF ModelFields use 'value_to_string' for this, but Djongo fields
         lack this. Instead, we utilize smart_text to convert the object
@@ -156,13 +158,8 @@ class ArrayModelField(serializers.Field):
 
     def to_internal_value(self, data):
         """Serialized -> Database"""
-        if not isinstance(data, list):
-            self.fail('not_a_list', input_class=type(data).__name__)
-        model_class = self.model_field.model_container
-        val_list = []
-        for datum in data:
-            val_list.append(model_class(**datum))
-        return val_list
+        self.run_child_validation(data)
+        return self.model_field.to_python(data)
 
     def to_representation(self, value):
         """Database -> Serialized"""
@@ -179,3 +176,35 @@ class ArrayModelField(serializers.Field):
 
         return data_list
 
+    def run_child_validation(self, data):
+        """Uses the field-level validation of the contained models"""
+        model_meta = get_model_meta(self.model_field.model_container)
+        errors = {}
+
+        # Run validation on every element of the list
+        for idx, item in enumerate(data):
+            # Confirm the element is a dictionary; otherwise report it
+            if not isinstance(item, dict):
+                errors[idx] = drf_valid_error(
+                    code='not_a_dict',
+                    detail="Not a dictionary of field values!"
+                )
+            else:
+                err_dict = {}
+                # Confirm that each field value is valid in its target
+                for key, val in item.items():
+                    target_field = model_meta.get_field(key)
+                    try:
+                        target_field.run_validators(val)
+                    except dja_valid_error as e:
+                        err_dict[key] = e
+                # If an invalid value was found, report it
+                if err_dict:
+                    errors[idx] = str(err_dict)
+
+        # If any error values were found, raise an error specifying such
+        if errors:
+            raise drf_valid_error(code='array_content_error',
+                                  detail=str(errors))
+
+        super(ArrayModelField, self).run_validators(data)

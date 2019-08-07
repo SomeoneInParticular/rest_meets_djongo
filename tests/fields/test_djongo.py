@@ -48,7 +48,7 @@ class TestDjongoField(object):
 
     def test_to_representation(self, drf_int_field):
         """
-        Confirm that the int_field can be serialized from it initial value
+        Confirm that the int_field can be serialized from it initial data
         """
         int_val = 15465
 
