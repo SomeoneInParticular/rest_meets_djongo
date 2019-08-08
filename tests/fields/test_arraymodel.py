@@ -10,12 +10,12 @@ from pytest import mark
 @mark.embed
 class TestArrayModelField(object):
 
-    val_list = [
+    embed_data = [
         {'int_field': 34, 'char_field': "Hello"},
         {'int_field': 431, 'char_field': "Bye!"}
     ]
 
-    embed_list = [EmbedModel(**val) for val in val_list]
+    embed_list = [EmbedModel(**val) for val in embed_data]
 
     instance = ArrayContainerModel(embed_list=embed_list)
 
@@ -24,14 +24,14 @@ class TestArrayModelField(object):
     )
 
     def test_to_internal_val(self):
-        new_list = self.array_field.to_internal_value(self.val_list)
+        new_list = self.array_field.to_internal_value(self.embed_data)
 
         assert self.embed_list == new_list
 
     def test_to_representation(self):
         new_list = self.array_field.to_representation(self.embed_list)
 
-        assert self.val_list == new_list
+        assert self.embed_data == new_list
 
     def test_conversion_equivalence(self):
         rep_list = self.array_field.to_representation(self.embed_list)
@@ -40,17 +40,14 @@ class TestArrayModelField(object):
         assert self.embed_list == new_list
 
     @mark.error
-    def test_validation(self, raises):
-        not_a_list = self.val_list[0]
-        with raises.SerializerValidationError:
-            self.array_field.to_internal_value(not_a_list)
+    def test_invalid_rejection(self, error_raised):
+        # Non-list values are caught
+        not_a_list = 1234
+        with error_raised:
+            self.array_field.run_validation(not_a_list)
 
-        invalid_list_field = self.val_list.copy()
+        # List contents with invalid fields are caught
+        invalid_list_field = self.embed_data.copy()
         invalid_list_field.append({'int_field': 34, 'bool_field': True})
-        with raises.FieldDoesNotExist:
-            self.array_field.to_internal_value(invalid_list_field)
-
-        nest_field_invalid = self.val_list.copy()
-        nest_field_invalid.append({'int_field': 34, 'char_field': "Hello World!"})
-        with raises.SerializerValidationError as exc:
-            self.array_field.to_internal_value(nest_field_invalid)
+        with error_raised:
+            self.array_field.run_validation(invalid_list_field)

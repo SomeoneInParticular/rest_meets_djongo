@@ -47,7 +47,7 @@ class TestDjongoField(object):
         assert new_val.__eq__(int_val)
 
     def test_conversion_equivalence(self):
-        """Confirm that serializing the value """
+        """Confirm that serializing the data """
         int_val = 5465423
 
         rep_val = self.int_field.to_representation(int_val)
@@ -56,19 +56,24 @@ class TestDjongoField(object):
         assert int_val.__eq__(new_val)
 
     @mark.error
-    def test_validation(self, raises):
-        big_int = 9876543210  # Too large
-        with raises.ModelValidationError:
-            self.int_field.to_internal_value(big_int)
-
-        invalid_val = "Hello"  # Not an integer
-        with raises.TypeError:
+    def test_invalid_rejection(self, error_raised):
+        # A non-integer parsable data
+        invalid_val = "Hello"
+        with error_raised:
             self.int_field.run_validators(invalid_val)
 
-        bad_string = "WAY TO LONG"  # Larger than the char count limit
-        with raises.ModelValidationError:
+        # Integer larger than field allowed
+        big_int = 9876543210
+        with error_raised:
+            self.int_field.run_validators(big_int)
+
+        # Non-string field passed as string
+        invalid_string = ObjIDModel()
+        with error_raised:
+            self.char_field.run_validators(invalid_string)
+
+        # String too large for the field provided
+        bad_string = "WAY TO LONG"
+        with error_raised:
             self.char_field.run_validators(bad_string)
 
-        invalid_string = ObjIDModel()  # Not a string
-        with raises.TypeError:
-            self.char_field.run_validators(invalid_string)
