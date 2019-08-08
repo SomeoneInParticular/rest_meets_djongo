@@ -3,10 +3,11 @@ from bson.errors import InvalidId
 
 from django.utils.encoding import smart_text
 from django.utils.translation import ugettext_lazy as _
-from django.core.exceptions import ValidationError as dja_valid_error
+from django.core.exceptions import FieldDoesNotExist
+from django.core.exceptions import ValidationError as ModelValidationError
 from djongo import models
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError as drf_valid_error
+from rest_framework.exceptions import ValidationError
 
 from .meta_manager import get_model_meta
 
@@ -18,28 +19,27 @@ class ObjectIdField(serializers.Field):
     def to_internal_value(self, data):
         """Serialized -> Database"""
         try:
-            return ObjectId(smart_text(data))
+            return ObjectId(str(data))
         except InvalidId:
-            raise serializers.ValidationError(
-                '`{}` is not a valid ObjectID'.format(data)
+            raise ValidationError(
+                f'`{data}` is not a valid ObjectID'
             )
 
     def to_representation(self, value):
         """Database -> Serialized"""
-        if not ObjectId.is_valid(value):
-            raise InvalidId
         return smart_text(value)
 
 
 class DjongoField(serializers.Field):
     """ Full replacement of DRF's ModelField for Djongo fields
 
-    Tracks and monitors an underlying model int_field, for later use
+    Tracks and monitors an underlying model_field, for later use with
+    validation and conversion
 
-    Also used to map unknown fields within a DjongoModelSerializer, if
-    any happen to be found (this may be the case in the period between
-    Djongo updating and us updating to compensate, or in the case of
-    custom fields added by the user)
+    Used primarily to map unknown fields within a DjongoModelSerializer,
+    if any happen to be found (this may be the case in the period
+    between Djongo updating and us updating to compensate, or in the
+    case of custom fields added by the user)
     """
     def __init__(self, model_field, **kwargs):
         self.model_field = model_field
@@ -51,11 +51,12 @@ class DjongoField(serializers.Field):
     def to_internal_value(self, data):
         """ Convert the data into the relevant python class instance
 
-        Utilizes Djongo's field override, when needed, converting from
-        a dict into a new object instance
+        Utilizes Djongo's field `to_python()`
         """
-        self.run_validators(data)
-        return self.model_field.to_python(data)
+        try:
+            return self.model_field.to_python(data)
+        except TypeError as err:
+            return ValidationError(err)
 
     def to_representation(self, value):
         """ Converts the provided data into a serializable representation
@@ -74,7 +75,12 @@ class DjongoField(serializers.Field):
         simply catches errors which are not implicitly validation-type
         errors, IE attempts to convert String -> Integer)
         """
-        self.model_field.run_validators(value)
+        try:
+            self.model_field.run_validators(value)
+        except ModelValidationError as err:
+            raise ValidationError(err.messages)
+        except TypeError as err:
+            raise ValidationError(err)
         super(DjongoField, self).run_validators(value)
 
 
@@ -108,8 +114,11 @@ class EmbeddedModelField(serializers.Field):
         """Serialized -> Database"""
         if not isinstance(data, dict):
             self.fail('not_a_dict', input_type=type(data).__name__)
-        model_class = self.model_field.model_container
-        return model_class(**data)
+        try:
+            model_class = self.model_field.model_container
+            return model_class(**data)
+        except TypeError as err:
+            raise ValidationError(err)
 
     def to_representation(self, value):
         """Database -> Serialized"""
@@ -154,12 +163,19 @@ class ArrayModelField(serializers.Field):
 
     default_error_messages = {
         'not_a_list': _('Expected a list of objects, but got `{input_class}`'),
+        'wrong_model': _('Expected a `{model_type}`, but got `{input_class}`')
     }
 
     def to_internal_value(self, data):
         """Serialized -> Database"""
-        self.run_child_validation(data)
-        return self.model_field.to_python(data)
+        try:
+            return self.model_field.to_python(data)
+        except AssertionError:
+            self.fail('not_a_list', input_class=type(data).__name__)
+        except FieldDoesNotExist as err:
+            raise ValidationError('bad_field', err)
+        except Exception as err:
+            raise ValidationError('invalid', err)
 
     def to_representation(self, value):
         """Database -> Serialized"""
@@ -175,36 +191,3 @@ class ArrayModelField(serializers.Field):
             data_list.append(data)
 
         return data_list
-
-    def run_child_validation(self, data):
-        """Uses the field-level validation of the contained models"""
-        model_meta = get_model_meta(self.model_field.model_container)
-        errors = {}
-
-        # Run validation on every element of the list
-        for idx, item in enumerate(data):
-            # Confirm the element is a dictionary; otherwise report it
-            if not isinstance(item, dict):
-                errors[idx] = drf_valid_error(
-                    code='not_a_dict',
-                    detail="Not a dictionary of field values!"
-                )
-            else:
-                err_dict = {}
-                # Confirm that each field value is valid in its target
-                for key, val in item.items():
-                    target_field = model_meta.get_field(key)
-                    try:
-                        target_field.run_validators(val)
-                    except dja_valid_error as e:
-                        err_dict[key] = e
-                # If an invalid value was found, report it
-                if err_dict:
-                    errors[idx] = str(err_dict)
-
-        # If any error values were found, raise an error specifying such
-        if errors:
-            raise drf_valid_error(code='array_content_error',
-                                  detail=str(errors))
-
-        super(ArrayModelField, self).run_validators(data)

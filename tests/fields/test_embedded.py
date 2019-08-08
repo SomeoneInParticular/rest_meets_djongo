@@ -5,6 +5,7 @@ from tests.models import ContainerModel, EmbedModel
 
 from pytest import fixture, mark
 
+
 @mark.embed
 class TestEmbeddedModelField(object):
     obj_data = {
@@ -44,28 +45,12 @@ class TestEmbeddedModelField(object):
         assert str(self.instance) == str(new_instance)
 
     @mark.error
-    def test_validation(self, raises):
-        """
-        Confirm that invalid objects are rejected when trying to
-        serialize/de-serialize in a field which was not build for them
-        """
-        # Non-models are rejected when attempting to serialize
-        not_a_model = dict()
-
-        with raises.SerializerValidationError:
-            self.rmd_embed.to_representation(not_a_model)
-
-        # Non-dictionary values are rejected when building instances
+    def test_invalid_rejection(self, error_raised):
+        # Non-dictionary values are rejected
         not_a_dict = 1234
 
-        with raises.SerializerValidationError:
-            self.rmd_embed.to_internal_value(not_a_dict)
-
-        # Models of the incorrect type are rejected
-        wrong_model = ContainerModel()
-
-        with raises.SerializerValidationError:
-            self.rmd_embed.to_representation(wrong_model)
+        with error_raised:
+            self.rmd_embed.run_validation(not_a_dict)
 
         # Dictionaries denoting fields which do not exist are rejected
         wrong_dict = {
@@ -73,6 +58,6 @@ class TestEmbeddedModelField(object):
             'char_field': 'error'
         }
 
-        with raises.TypeError:
-            self.rmd_embed.to_internal_value(wrong_dict)
+        with error_raised:
+            self.rmd_embed.run_validation(wrong_dict)
 
