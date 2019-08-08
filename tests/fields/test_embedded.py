@@ -7,7 +7,7 @@ from pytest import fixture, mark
 
 
 @mark.embed
-class TestEmbeddedModelField(object):
+class DataParsing(object):
     obj_data = {
         'int_field': 123,
         'char_field': "Hello"

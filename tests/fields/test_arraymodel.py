@@ -8,7 +8,7 @@ from pytest import mark
 
 @mark.compound
 @mark.embed
-class TestArrayModelField(object):
+class DataParsing(object):
 
     embed_data = [
         {'int_field': 34, 'char_field': "Hello"},

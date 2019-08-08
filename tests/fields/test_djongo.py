@@ -7,7 +7,7 @@ from pytest import fixture, mark
 
 
 @mark.basic
-class TestDjongoField(object):
+class DataParsing(object):
 
     model_meta = get_model_meta(ObjIDModel())
 
