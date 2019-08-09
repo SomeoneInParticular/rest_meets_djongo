@@ -3,11 +3,33 @@ import pytest
 
 @pytest.fixture(scope='session')
 def error_raised():
-    """Builds a named tuple of error raising cases for use in tests"""
+    """Builds a raise instance for use w/ error checks"""
     from rest_framework.exceptions import ValidationError
     from pytest import raises
 
     return raises(ValidationError)
+
+
+@pytest.fixture(scope='session')
+def assert_dict_equals():
+    from tests.utils import format_dict
+
+    def _compare_data(dict1, dict2):
+        assert format_dict(dict1) == format_dict(dict2)
+
+    return _compare_data
+
+
+@pytest.fixture(scope='session')
+def instance_matches_data():
+
+    def _does_instance_match_data(instance, data):
+        for field in data.keys():
+            if getattr(instance, field) != data[field]:
+                return False
+        return True
+
+    return _does_instance_match_data
 
 
 def pytest_configure():

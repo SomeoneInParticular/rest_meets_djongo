@@ -1,4 +1,3 @@
-from django.test import TestCase
 from django.core.exceptions import ImproperlyConfigured
 import rest_framework.fields as drf_fields
 import rest_framework.serializers as drf_ser
@@ -7,44 +6,85 @@ import pytest
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo import serializers as rmd_ser
 
-from tests import models as test_models
-from tests.utils import format_dict
+from tests.models import GenericModel, ObjIDModel, OptionsModel
+
+from pytest import fixture, mark
 
 
-class TestMapping(TestCase):
-    def test_basic_with_object_id(self):
+@mark.basic
+@mark.core
+@mark.serializer
+class TestMapping(object):
+    def test_basic_mapping(self, assert_dict_equals):
         """
-        Confirm that the serializer can still handle models w/o other
-        embedded models as fields. We also confirm that ObjectID fields
-        can be managed here as well
+        Confirm that the serializer can still handle models w/
+        standard Django fields
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = GenericModel
                 fields = '__all__'
 
         expected_dict = {
-            '_id': rmd_fields.ObjectIdField(read_only=True),
-            'int_field': drf_fields.IntegerField(max_value=2147483647,
-                                                 min_value=-2147483648),
-            'char_field': drf_fields.CharField(max_length=5),
+            'id': drf_fields.IntegerField(label='ID', read_only=True),
+            'big_int': drf_fields.IntegerField(
+                max_value=9223372036854775807,
+                min_value=-9223372036854775808
+            ),
+            'bool': drf_fields.BooleanField(),
+            'char': "CharField(validators=[<django.core.validators.MaxLengthValidator object>])",
+            'comma_int': (
+                "CharField(validators=[<django.core.validators.RegexValidator "
+                "object>, <django.core.validators.MaxLengthValidator object>])"
+            ),
+            'date': drf_fields.DateField(),
+            'date_time': drf_fields.DateTimeField(),
+            'decimal': drf_fields.DecimalField(
+                decimal_places=5,
+                max_digits=10
+            ),
+            'email': drf_fields.EmailField(
+                max_length=254
+            ),
+            'float': drf_fields.FloatField(),
+            'integer': drf_fields.IntegerField(
+                max_value=2147483647,
+                min_value=-2147483648
+            ),
+            'null_bool': drf_fields.NullBooleanField(required=False),
+            'pos_int': drf_fields.IntegerField(
+                max_value=2147483647,
+                min_value=0
+            ),
+            'pos_small_int': drf_fields.IntegerField(
+                max_value=32767,
+                min_value=0
+            ),
+            'slug': drf_fields.SlugField(
+                allow_unicode=False,
+                max_length=50
+            ),
+            'small_int': drf_fields.IntegerField(
+                max_value=32767,
+                min_value=-32768
+            ),
+            'text': "CharField(style={'base_template': 'textarea.html'})",
+            'time': drf_fields.TimeField(),
+            'url': drf_fields.URLField(max_length=200),
+            'ip': drf_fields.IPAddressField(),
+            'uuid': "ModelField(model_field=<django.db.models.fields.UUIDField: uuid>)",
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(TestSerializer().get_fields(), expected_dict)
 
-        # String comparision prevents the fields being different (identical)
-        # objects from now counting as the same
-        assert expected_str == observed_str
-
-    def test_field_options(self):
+    def test_options_mapping(self, assert_dict_equals):
         """
         Confirm that new serializers will catch and correctly manage
-        field options for its specified model
+        field options for its specified model, for non-embedded models
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.OptionsModel
+                model = OptionsModel
                 fields = '__all__'
 
         expected_dict = {
@@ -84,19 +124,16 @@ class TestMapping(TestCase):
                            "validators=[<UniqueValidator(queryset=OptionsModel.objects.all())>])"),
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(TestSerializer().get_fields(), expected_dict)
 
-        assert expected_str == observed_str
-
-    def test_respects_fields(self):
+    def test_respects_fields(self, assert_dict_equals):
         """
         Confirm that basic fields can still be ignored by not specifying
         them in the `fields` Meta parameter
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 fields = ['int_field']
 
         expected_dict = {
@@ -104,19 +141,16 @@ class TestMapping(TestCase):
                                                  min_value=-2147483648),
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(TestSerializer().get_fields(), expected_dict)
 
-        assert expected_str == observed_str
-
-    def test_respects_exclude(self):
+    def test_respects_exclude(self, assert_dict_equals):
         """
         Confirm that basic fields can still be ignored by specifying them
         in the `exclude` Meta parameter
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 exclude = ['int_field']
 
         expected_dict = {
@@ -124,11 +158,9 @@ class TestMapping(TestCase):
             'char_field': drf_fields.CharField(max_length=5),
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(TestSerializer().get_fields(), expected_dict)
 
-        assert expected_str == observed_str
-
+    @mark.error
     def test_invalid_field_caught(self):
         """
         Confirm that field names not found in the model are still
@@ -136,28 +168,32 @@ class TestMapping(TestCase):
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.GenericModel
+                model = ObjIDModel
                 fields = ['id', 'invalid']
 
-        with pytest.raises(ImproperlyConfigured) as exc:
-            fields = TestSerializer().fields
+        with pytest.raises(ImproperlyConfigured):
+            fields_vals = TestSerializer().get_fields()
+            print(fields_vals)
 
+    @mark.error
     def test_missing_field_caught(self):
         """
         Confirm that failing to include explicitly declared fields in
-        the serializer will throw and error
+        the serializer will throw an error
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
-            missing = drf_ser.ReadOnlyField()
+            missing = drf_ser.ReadOnlyField()  # Should be declared
 
             class Meta:
-                model = test_models.GenericModel
+                model = ObjIDModel
                 fields = ['id']
 
-        with pytest.raises(AssertionError) as exc:
-            fields = TestSerializer().fields
+        with pytest.raises(AssertionError):
+            field_vals = TestSerializer().get_fields()
+            print(field_vals)
 
-    def test_missing_inherited_field_ignorable(self):
+    @mark.error
+    def test_missing_inherited_field_ignorable(self, assert_dict_equals):
         """
         Confirm the fields declared in a serializer that another
         serializer inherits from can be safely ignored in child
@@ -167,19 +203,21 @@ class TestMapping(TestCase):
             missing = drf_ser.ReadOnlyField()
 
             class Meta:
-                model = test_models.GenericModel
+                model = ObjIDModel
                 fields = '__all__'
 
         class ChildSerializer(TestSerializer):
-            missing = drf_ser.ReadOnlyField()
+            class Meta(TestSerializer.Meta):
+                fields = ['_id']
 
-            class Meta:
-                model = test_models.GenericModel
-                fields = ['id']
+        expected_dict = {
+            '_id': rmd_fields.ObjectIdField(read_only=True),
+        }
 
-        fields = ChildSerializer().fields
+        assert_dict_equals(ChildSerializer().get_fields(), expected_dict)
 
-    def test_inherited_field_nullable(self):
+    @mark.error
+    def test_inherited_field_nullable(self, assert_dict_equals):
         """
         Confirm the fields declared in a serializer that another
         serializer inherits from can still be ignored by setting them to
@@ -189,121 +227,87 @@ class TestMapping(TestCase):
             missing = drf_ser.ReadOnlyField()
 
             class Meta:
-                model = test_models.GenericModel
+                model = ObjIDModel
                 fields = '__all__'
 
         class ChildSerializer(TestSerializer):
             missing = None
 
-            class Meta:
-                model = test_models.GenericModel
-                fields = '__all__'
+            class Meta(TestSerializer.Meta):
+                pass
 
         expected_dict = {
-            'id': drf_fields.IntegerField(label='ID', read_only=True),
-            'big_int': drf_fields.IntegerField(max_value=9223372036854775807,
-                                               min_value=-9223372036854775808),
-            'bool': drf_fields.BooleanField(),
-            'char': ('CharField(validators='
-                     '[<django.core.validators.MaxLengthValidator object>])'),
-            'comma_int': ("CharField(validators="
-                          "[<django.core.validators.RegexValidator object>, "
-                          "<django.core.validators.MaxLengthValidator object>])"),
-            'date': drf_fields.DateField(),
-            'date_time': drf_fields.DateTimeField(),
-            'decimal': drf_fields.DecimalField(max_digits=10, decimal_places=5),
-            'email': drf_fields.EmailField(max_length=254),
-            'float': drf_fields.FloatField(),
-            'integer': drf_fields.IntegerField(max_value=2147483647,
-                                               min_value=-2147483648),
-            'null_bool': drf_fields.NullBooleanField(required=False),
-            'pos_int': drf_fields.IntegerField(max_value=2147483647,
-                                               min_value=0),
-            'pos_small_int': drf_fields.IntegerField(max_value=32767,
-                                                     min_value=0),
-            'slug': drf_fields.SlugField(allow_unicode=False,
-                                         max_length=50),
-            'small_int': drf_fields.IntegerField(max_value=32767,
-                                                 min_value=-32768),
-            'text': drf_fields.CharField(style={'base_template': 'textarea.html'}),
-            'time': drf_fields.TimeField(),
-            'url': drf_fields.URLField(max_length=200),
-            'ip': drf_fields.IPAddressField(),
-            'uuid': ("ModelField(model_field="
-                     "<django.db.models.fields.UUIDField: uuid>)"),
+            '_id': rmd_fields.ObjectIdField(read_only=True),
+            'int_field': drf_fields.IntegerField(max_value=2147483647,
+                                                 min_value=-2147483648),
+            'char_field': drf_fields.CharField(max_length=5),
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(ChildSerializer().get_fields())
-
-        assert expected_str == observed_str
+        assert_dict_equals(ChildSerializer().get_fields(), expected_dict)
 
 
-class TestIntegration(TestCase):
-    def test_retrieve(self):
+@mark.basic
+@mark.core
+@mark.integration
+@mark.serializer
+@mark.django_db
+class TestIntegration(object):
+    # Valid, generic data for the ObjectId model
+    generic_data = {
+        'int_field': 55,
+        'char_field': 'Foo'
+    }
+
+    @fixture(scope='function')
+    def initial_instance(self):
+        instance = ObjIDModel.objects.create(**self.generic_data)
+        return instance
+
+    def test_retrieve(self, assert_dict_equals, initial_instance):
         """
         Confirm that existing instances of models with basic fields
         can still be retrieved and serialized correctly
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 fields = '__all__'
 
-        data = {
-            'int_field': 55,
-            'char_field': 'BYEH'
-        }
+        serializer = TestSerializer(initial_instance)
 
-        instance = test_models.ObjIDModel.objects.create(**data)
-        serializer = TestSerializer(instance)
+        new_data = {'_id': str(initial_instance.pk)}
+        new_data.update(self.generic_data.copy())
 
-        data.update({'_id': str(instance._id)})
+        assert_dict_equals(new_data, serializer.data)
 
-        self.assertDictEqual(data, serializer.data)
-
-    def test_create(self):
+    def test_create(self, instance_matches_data):
         """
         Confirm that new instances of models with basic fields can still
         be generated and saved correctly from raw data
         """
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 fields = '__all__'
 
-        data = {
-            'int_field': 55,
-            'char_field': 'Foo'
-        }
-
         # Serializer should validate
-        serializer = TestSerializer(data=data)
+        serializer = TestSerializer(data=self.generic_data)
         assert serializer.is_valid(), serializer.errors
 
         # Serializer should be able to save valid data correctly
         instance = serializer.save()
-        assert instance.int_field == data['int_field']
 
-    def test_update(self):
+        # Confirm that the instance contains the correct data
+        assert instance_matches_data(instance, self.generic_data)
+
+    def test_update(self, instance_matches_data, initial_instance):
         """
         Confirm that existing instances of models with basic fields can
         still be updated when provided with new raw data
         """
-        # Initial (to-be-updated) instance instantiation
-        initial_data = {
-            'int_field': 55,
-            'char_field': 'Foo'
-        }
-
-        instance = test_models.ObjIDModel.objects.create(**initial_data)
-
-        initial_data.update({'pk': instance.pk})
-
-        # Try and perform a serializer based update
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 fields = '__all__'
 
         new_data = {
@@ -311,59 +315,44 @@ class TestIntegration(TestCase):
             'char_field': 'Bar'
         }
 
-        serializer = TestSerializer(instance, data=new_data)
+        serializer = TestSerializer(initial_instance, data=new_data)
 
         # Confirm that the partial update data is valid
         assert serializer.is_valid(), serializer.errors
 
         # Confirm that the serializer saves this updated instance correctly
         serializer.save()
-        assert instance.pk == initial_data['pk']
-        assert instance.int_field == new_data['int_field']
-        assert instance.char_field == new_data['char_field']
+        # Add the pk field to make sure a new instance wasn't created
+        new_data.update({'_id': initial_instance.pk})
 
-    def test_partial_update(self):
+        # Confirm that the instance contains the correct data
+        assert instance_matches_data(initial_instance, new_data)
+
+    def test_partial_update(self, instance_matches_data, initial_instance):
         """
         Confirm that existing instances of models with basic fields can
         still be updated when provided with new partial data
         """
-        # Initial (to-be-updated) instance creation
-        old_data = {
-            'int_field': 55,
-            'char_field': 'Foo'
-        }
-
-        instance = test_models.ObjIDModel.objects.create(**old_data)
-
-        old_data.update({'pk': instance.pk})
-
-        # Try and perform a serializer based update
         class TestSerializer(rmd_ser.DjongoModelSerializer):
             class Meta:
-                model = test_models.ObjIDModel
+                model = ObjIDModel
                 fields = '__all__'
 
-        new_data = {
+        partial_data = {
             'int_field': 1234,
         }
 
-        serializer = TestSerializer(instance, data=new_data, partial=True)
+        serializer = TestSerializer(initial_instance, data=partial_data, partial=True)
 
         # Confirm that the partial update data is valid
         assert serializer.is_valid(), serializer.errors
 
         # Confirm that the serializer saves this correctly
-        serializer.save()
-        assert instance.pk == old_data['pk']
-        assert instance.int_field == new_data['int_field']
-        assert instance.char_field == old_data['char_field']
+        new_instance = serializer.save()
 
-        # Confirm that the serializer did not lose data in the update
-        expected_data = {
-            '_id': str(instance._id),
-            'int_field': instance.int_field,
-            'char_field': instance.char_field
-        }
+        # Confirm that only specified values were changed
+        new_data = {'_id': initial_instance.pk}
+        new_data.update(self.generic_data)
+        new_data.update(partial_data)
 
-        self.assertDictEqual(serializer.data, expected_data)
-
+        assert instance_matches_data(new_instance, new_data)

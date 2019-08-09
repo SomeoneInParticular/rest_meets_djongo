@@ -5,7 +5,7 @@ from pytest import fixture, mark
 
 @mark.basic
 @mark.field
-class DataParsing(object):
+class TestDataParsing(object):
 
     field = ObjectIdField()
 

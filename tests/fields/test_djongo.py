@@ -7,7 +7,8 @@ from pytest import fixture, mark
 
 
 @mark.basic
-class DataParsing(object):
+@mark.core
+class TestDataParsing(object):
 
     model_meta = get_model_meta(ObjIDModel())
 
