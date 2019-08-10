@@ -1,7 +1,4 @@
-from bson import ObjectId
 from collections import OrderedDict
-from datetime import datetime
-import uuid
 
 import rest_framework.fields as drf_fields
 from rest_framework.serializers import PrimaryKeyRelatedField
