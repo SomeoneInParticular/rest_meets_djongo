@@ -15,6 +15,7 @@ from pytest import fixture, mark, raises
 
 
 @mark.relation
+@mark.mapping
 @mark.serializer
 class TestMapping(object):
     def test_fwd_relation_mapping(self, assert_dict_equals):
