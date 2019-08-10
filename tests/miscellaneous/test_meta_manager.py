@@ -26,13 +26,18 @@ class TestMetaManager(object):
         return RelationContainerModel()
 
     @fixture(scope='class')
-    def reverse_relation(self):
-        """Allows for relational fixture's w/ many-to-one field testing"""
-        from tests.models import ReverseRelatedModel
-        return ReverseRelatedModel()
+    def foreign_relation(self):
+        from tests.models import ForeignKeyRelatedModel
+        return ForeignKeyRelatedModel()
 
     @fixture(scope='class')
-    def container(self):
+    def reverse_relation(self):
+        """Allows for relational fixture's w/ many-to-one field testing"""
+        from tests.models import ManyToManyRelatedModel
+        return ManyToManyRelatedModel()
+
+    @fixture(scope='class')
+    def embed_container(self):
         from tests.models import ContainerModel
         return ContainerModel()
 
@@ -138,7 +143,7 @@ class TestMetaManager(object):
         assert field_info.fields_and_pk['pk'].name == '_id'
 
     @mark.relation
-    def test_get_fk_relation_field_info(self, generic, base_relation):
+    def test_get_fk_relation_field_info(self, foreign_relation, base_relation):
         """
         Tests that one-to-many relation information is correctly sorted
         and managed by the get_field_info() function
@@ -148,9 +153,9 @@ class TestMetaManager(object):
         # Confirm that one-to-many relations are handled correctly
         fk_field_info = field_info.relations['fk_field']
         assert isinstance(fk_field_info.model_field, djm_models.ForeignKey)
-        assert fk_field_info.related_model == generic.__class__
+        assert fk_field_info.related_model == foreign_relation.__class__
         assert not fk_field_info.to_many
-        assert (fk_field_info.to_field == 'id')  # Primary key in related model
+        assert (fk_field_info.to_field == '_id')
         assert not fk_field_info.has_through_model
         assert not fk_field_info.reverse
 
@@ -172,11 +177,11 @@ class TestMetaManager(object):
         assert not mfk_field_info.reverse
 
     @mark.embed
-    def test_get_embed_model_field_info(self, container, embedded):
+    def test_get_embed_model_field_info(self, embed_container, embedded):
         """
         Tests that embedded model fields are correctly caught and managed
         """
-        field_info = meta_manager.get_field_info(container)
+        field_info = meta_manager.get_field_info(embed_container)
 
         # Confirm that embedded model info was caught correctly
         embed_field_info = field_info.embedded['embed_field']

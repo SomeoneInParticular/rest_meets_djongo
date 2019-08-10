@@ -12,6 +12,7 @@ def error_raised():
 
 @pytest.fixture(scope='session')
 def assert_dict_equals():
+    """Compare two dictionaries to one another"""
     from tests.utils import format_dict
 
     def _compare_data(dict1, dict2):
@@ -22,12 +23,26 @@ def assert_dict_equals():
 
 @pytest.fixture(scope='session')
 def instance_matches_data():
-
+    """Confirm that all data in a dictionary is present in an instance"""
     def _does_instance_match_data(instance, data):
+        err_list = {}
         for field in data.keys():
-            if getattr(instance, field) != data[field]:
-                return False
-        return True
+            # Common error types
+            try:
+                if not hasattr(instance, field):
+                    msg = f"Field `{field}` not found in model instance!"
+                    err_list[field] = msg
+                if not getattr(instance, field).__eq__(data[field]):
+                    msg = (f"Field `{field}` has a value of " 
+                           f"'{getattr(instance, field)}', but a value of "
+                           f"'{data[field]}' was expected")
+                    err_list[field] = msg
+            # Rarer error types
+            except Exception as err:
+                err_list[field] = err
+
+        if err_list:
+            raise AssertionError(str(err_list))
 
     return _does_instance_match_data
 

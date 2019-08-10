@@ -1,12 +1,13 @@
 from djongo import models
 
+from datetime import datetime
 
 # --- Basic Models --- #
 # Generic, DRF compliant model, with all DRF fields
 class GenericModel(models.Model):
     big_int = models.BigIntegerField()
     bool = models.BooleanField()
-    char = models.CharField()
+    char = models.CharField(max_length=20)
     comma_int = models.CommaSeparatedIntegerField()
     date = models.DateField()
     date_time = models.DateTimeField()
@@ -91,7 +92,7 @@ class ContainerModel(models.Model):
         return str(self._id) + "-(" + str(self.embed_field) + ")"
 
 
-# Model for testing w/ embedded models which contain other embedded models
+# Model for testing w/ embedded models which contain embedded models
 class DeepContainerModel(models.Model):
     str_id = models.CharField(primary_key=True)
     deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
@@ -107,26 +108,20 @@ class ArrayContainerModel(models.Model):
     objects = models.DjongoManager()
 
 
-# A model with both an abstract and non-abstract embedded model
-# Both should still function, one simply also has a pk which needs to
-# be used and validated
-class DualEmbedModel(models.Model):
+# --- Relation Containing Models --- #
+# Model related to by RelationContainerModel
+class ManyToManyRelatedModel(models.Model):
     _id = models.ObjectIdField()
-    generic_val = models.EmbeddedModelField(
-        model_container=GenericModel
-    )
-    embed_val = models.EmbeddedModelField(
-        model_container=EmbedModel
-    )
+    boolean = models.BooleanField(default=True)
+    smol_int = models.SmallIntegerField()
 
     objects = models.DjongoManager()
 
 
-# --- Relation Containing Models --- #
-# Model related to by RelationContainerModel
-class ReverseRelatedModel(models.Model):
+class ForeignKeyRelatedModel(models.Model):
     _id = models.ObjectIdField()
-    boolean = models.BooleanField(default=True)
+    null_bool = models.NullBooleanField()
+    description = models.TextField()
 
     objects = models.DjongoManager()
 
@@ -134,9 +129,10 @@ class ReverseRelatedModel(models.Model):
 # Model with representative types of relations
 class RelationContainerModel(models.Model):
     _id = models.ObjectIdField()
-    fk_field = models.ForeignKey(to=GenericModel,
+    control_val = models.CharField(default='CONTROL', max_length=20)
+    fk_field = models.ForeignKey(to=ForeignKeyRelatedModel,
                                  on_delete=models.CASCADE)
-    mfk_field = models.ManyToManyField(to=ReverseRelatedModel,
+    mfk_field = models.ManyToManyField(to=ManyToManyRelatedModel,
                                        blank=True,
                                        related_name='container_field')
 

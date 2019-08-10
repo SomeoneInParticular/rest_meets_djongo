@@ -1,552 +1,461 @@
 from bson import ObjectId
 from collections import OrderedDict
+from datetime import datetime
 import uuid
 
-from django.test import TestCase
 import rest_framework.fields as drf_fields
-import rest_framework.serializers as drf_ser
+from rest_framework.serializers import PrimaryKeyRelatedField
 
 from rest_meets_djongo import fields as rmd_fields
-from rest_meets_djongo import serializers as rmd_ser
+from rest_meets_djongo.serializers import DjongoModelSerializer
 
-from tests import models as test_models
-from tests.utils import format_dict
+from tests.models import \
+    ManyToManyRelatedModel, RelationContainerModel, ForeignKeyRelatedModel
+from pytest import fixture, mark, raises
 
 
-class TestMapping(TestCase):
-    def test_fwd_relation_mapping(self):
+@mark.relation
+@mark.serializer
+class TestMapping(object):
+    def test_fwd_relation_mapping(self, assert_dict_equals):
         """
         Confirm that the serializer still handles models which have
         relations to other models, w/o custom field selection
         """
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             # DRF usually expects explicit field declaration:
             # Just to check, however, we'll try auto-building the fields
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
-            'fk_field': 'PrimaryKeyRelatedField(queryset=GenericModel.objects.all())',
+            'control_val': drf_fields.CharField(max_length=20,
+                                                required=False),
+            'fk_field': ('PrimaryKeyRelatedField('
+                         'queryset=ForeignKeyRelatedModel.objects.all())'),
             'mfk_field': ('ManyRelatedField(child_relation='
                           'PrimaryKeyRelatedField(queryset='
-                          'ReverseRelatedModel.objects.all(), '
+                          'ManyToManyRelatedModel.objects.all(), '
                           'required=False), '
                           'required=False)'),
         }
 
-        expect_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(expected_dict, TestSerializer().get_fields())
 
-        assert expect_str == observed_str
-
-    def test_rvs_relation_mapping(self):
+    def test_rvs_relation_ignored(self, assert_dict_equals):
         """
-        Confirm that the serializer still excludes reverse relations by
-        default (they are hard to predict and create default uses for)
+        Confirm that the serializer excludes reverse relations by
+        default (they are hard to predict and create default uses with)
         """
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
 
             class Meta:
-                model = test_models.ReverseRelatedModel
+                model = ManyToManyRelatedModel
                 fields = '__all__'
 
         expect_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
-            'boolean': drf_fields.BooleanField(required=False)
-            # Reverse models are excluded by default (as they are difficult
-            # to predict how they should be parsed)
+            'boolean': drf_fields.BooleanField(required=False),
+            'smol_int': drf_fields.IntegerField(
+                max_value=32767,
+                min_value=-32768
+            )
+            # Reverse models are excluded by default
         }
 
-        expected_str = format_dict(expect_dict)
+        assert_dict_equals(expect_dict, TestSerializer().get_fields())
 
-        observed_str = str(TestSerializer().get_fields())
-
-        assert expected_str == observed_str
-
-    def test_respects_fields(self):
+    def test_respects_fields(self, assert_dict_equals):
         """
         Confirm that relations can still be ignored by not specifying
         them in the `fields` Meta parameter
         """
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = ['fk_field']
 
         expected_dict = {
-            'fk_field': 'PrimaryKeyRelatedField(queryset=GenericModel.objects.all())',
+            'fk_field': ('PrimaryKeyRelatedField('
+                         'queryset=ForeignKeyRelatedModel.objects.all())'),
         }
 
-        expected_str = format_dict(expected_dict)
+        assert_dict_equals(expected_dict, TestSerializer().get_fields())
 
-        observed_str = str(TestSerializer().get_fields())
-
-        assert expected_str == observed_str
-
-    def test_respects_exclude(self):
+    def test_respects_exclude(self, assert_dict_equals):
         """
         Confirm that relations can still be ignored by specifying them
         in the `exclude` Meta parameter
         """
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 exclude = ['fk_field']
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
+            'control_val': drf_fields.CharField(max_length=20,
+                                                required=False),
             'mfk_field': ('ManyRelatedField(child_relation='
                           'PrimaryKeyRelatedField(queryset='
-                          'ReverseRelatedModel.objects.all(), '
+                          'ManyToManyRelatedModel.objects.all(), '
                           'required=False), '
                           'required=False)'),
         }
 
-        expected_str = format_dict(expected_dict)
-        observed_str = str(TestSerializer().get_fields())
+        assert_dict_equals(expected_dict, TestSerializer().get_fields())
 
-        assert expected_str == observed_str
+    @mark.django_db
+    def test_missing_field_caught(self):
+        """
+        Confirm that failing to include an explicitly declared relation
+        field in the serializer will throw an error
+        """
+        class TestSerializer(DjongoModelSerializer):
+            missing = PrimaryKeyRelatedField(
+                queryset=RelationContainerModel.objects.all()
+            )
+
+            class Meta:
+                model = RelationContainerModel
+                fields = ['_id']
+
+        with raises(AssertionError):
+            field_vals = TestSerializer().get_fields()
+            print(field_vals)
+
+    @mark.django_db
+    def test_missing_inherited_field_ignorable(self, assert_dict_equals):
+        """
+        Confirm that fields declared in a parent serializer do not need
+        to be declared in child serializers of that parent
+        """
+        class TestSerializer(DjongoModelSerializer):
+            missing = PrimaryKeyRelatedField(
+                queryset=RelationContainerModel.objects.all()
+            )
+
+            class Meta:
+                model = RelationContainerModel
+                fields = '__all__'
+
+        class ChildSerializer(TestSerializer):
+            class Meta(TestSerializer.Meta):
+                fields = ['fk_field']
+
+        expected_dict = {
+            'fk_field': ('PrimaryKeyRelatedField('
+                         'queryset=ForeignKeyRelatedModel.objects.all())'),
+        }
+
+        assert_dict_equals(ChildSerializer().get_fields(), expected_dict)
+
+    @mark.django_db
+    def test_inherited_field_nullable(self, assert_dict_equals):
+        """
+        Confirm that fields declared in a parent serializer can be set
+        to null to ignore them in child serializers
+        """
+        class TestSerializer(DjongoModelSerializer):
+            missing = PrimaryKeyRelatedField(
+                queryset=RelationContainerModel.objects.all()
+            )
+
+            class Meta:
+                model = RelationContainerModel
+                fields = '__all__'
+
+        class ChildSerializer(TestSerializer):
+            missing = None
+
+            class Meta(TestSerializer.Meta):
+                pass
+
+        expected_dict = {
+            '_id': rmd_fields.ObjectIdField(read_only=True),
+            'control_val': drf_fields.CharField(max_length=20,
+                                                required=False),
+            'fk_field': ('PrimaryKeyRelatedField('
+                         'queryset=ForeignKeyRelatedModel.objects.all())'),
+            'mfk_field': ('ManyRelatedField(child_relation='
+                          'PrimaryKeyRelatedField(queryset='
+                          'ManyToManyRelatedModel.objects.all(), '
+                          'required=False), '
+                          'required=False)'),
+        }
+
+        assert_dict_equals(ChildSerializer().get_fields(), expected_dict)
 
 
-class TestIntegration(TestCase):
-    def test_root_retrieve(self):
+@mark.relation
+@mark.integration
+@mark.serializer
+@mark.django_db
+class TestIntegration(object):
+    # -- DB Setup fixtures -- #
+    @fixture
+    def foreign_fixture(self):
+        """Prepares a default ForeignKeyRelatedModel instance in the DB"""
+        init = {
+            'null_bool': True,
+            'description':
+                'A generic instance of the ForeignKeyRelatedModel'
+        }
+
+        instance = ForeignKeyRelatedModel.objects.create(**init)
+        data = {'_id': str(instance.pk)}
+        data.update(init)
+
+        return data, instance
+
+    @fixture
+    def manytomany_fixture(self):
+        """Prepares a default ForeignKeyRelatedModel instance in the DB"""
+        init = {
+            'boolean': False,
+            'smol_int': 2
+        }
+
+        instance = ManyToManyRelatedModel.objects.create(**init)
+        data = {'_id': str(instance.pk)}
+        data.update(init)
+
+        return data, instance
+
+    @fixture
+    def prep_db(self, foreign_fixture, manytomany_fixture):
+        """Prepare the database for the classes' database"""
+        from collections import namedtuple
+
+        TestTuple = namedtuple('TestTuple', ['data', 'instance'])
+
+        fk_tuple = TestTuple(*foreign_fixture)
+        mtm_tuple = TestTuple(*manytomany_fixture)
+
+        return fk_tuple, mtm_tuple
+
+    # -- Actual test code -- #
+    def test_root_retrieve(self, assert_dict_equals, prep_db):
         """
         Confirm that existing instances of models with relational fields
         can still be retrieved and serialized correctly when the user
         does not want nested representation (depth = 0)
         """
-        # Set up the referenced model instances in the database
-        relation_data = OrderedDict({
-            'id': 999,
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 1.2345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        })
+        fk_tuple, mtm_tuple = prep_db
 
-        basic_instance = test_models.GenericModel.objects.create(
-            **relation_data
-        )
-
-        mtm_instance = test_models.ReverseRelatedModel.objects.create()
-
-        instance = test_models.RelationContainerModel.objects.create(
-            fk_field=basic_instance,
+        instance = RelationContainerModel.objects.create(
+            fk_field=fk_tuple.instance,
             # Many-to-Many fields cannot be set at creation; see below
         )
 
-        instance.mfk_field.add(mtm_instance)
+        instance.mfk_field.add(mtm_tuple.instance)
 
         # Attempt to serialize the instance
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 0
 
         serializer = TestSerializer(instance)
 
         expect_data = {
-            '_id': str(instance.pk),  # Serializers represent ObjectID's as strings
-            'fk_field': basic_instance.pk,
-            'mfk_field': [mtm_instance._id]
+            '_id': str(instance.pk),
+            'control_val': 'CONTROL',
+            'fk_field': fk_tuple.instance.pk,
+            'mfk_field': [mtm_tuple.instance.pk]
         }
 
-        self.assertDictEqual(expect_data, serializer.data)
+        assert_dict_equals(expect_data, serializer.data)
 
-    def test_deep_retrieve(self):
+    def test_deep_retrieve(self, assert_dict_equals, prep_db):
         """
         Confirm that existing instances of models with relational fields
         can still be retrieved and serialized correctly, when the user
         wants nested representation (depth > 0)
         """
-        # Set up the referenced model instances in the database
-        generic_model_data = OrderedDict({
-            'id': 999,
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 1.2345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        })
-
-        generic_instance = test_models.GenericModel.objects.create(
-            **generic_model_data
-        )
-
-        mtm_model_data = OrderedDict({
-            '_id': str(ObjectId()),
-            'boolean': False
-        })
-
-        mtm_model_instance = test_models.ReverseRelatedModel.objects.create(
-            **mtm_model_data
-        )
+        fk_tuple, mtm_tuple = prep_db
 
         # Create the instance to serializer
-        instance = test_models.RelationContainerModel.objects.create(
-            fk_field=generic_instance,
+        instance = RelationContainerModel.objects.create(
+            fk_field=fk_tuple.instance,
             # Many-to-Many fields cannot be set at creation; see below
         )
 
-        instance.mfk_field.add(mtm_model_instance)
+        instance.mfk_field.add(mtm_tuple.instance)
 
         # Attempt to serialize the instance
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
         serializer = TestSerializer(instance)
 
-        # Rewrite the expected data in the serialized form, for comparision
-        generic_model_data.update({
-            'decimal': '1.23450',
-            'uuid': str(generic_model_data['uuid']),
-        })
-
         # Confirm the data was serialized as expected
         expected_data = {
-            '_id': instance.pk,
-            'fk_field': generic_model_data,
-            'mfk_field': [mtm_model_data]
+            '_id': str(instance.pk),
+            'control_val': 'CONTROL',
+            'fk_field': OrderedDict(fk_tuple.data),
+            'mfk_field': [OrderedDict(mtm_tuple.data)]
         }
 
-        expected_str = format_dict(expected_data)
-        observed_str = str(serializer.data)
+        assert_dict_equals(serializer.data, expected_data)
 
-        assert expected_str == observed_str
-
-    def test_root_create(self):
+    def test_root_create(self, instance_matches_data, prep_db):
         """
         Confirm that new instances of models with relational fields can
         still be generated and saved correctly from raw data, given
         the the user does not want nested representation (depth = 0)
         """
-        # Set up the referenced model instances in the database
-        generic_data = {
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 12.345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        }
-
-        generic_instance = test_models.GenericModel.objects.create(**generic_data)
-
-        generic_data.update({'pk': generic_instance.pk})
+        fk_tuple, mtm_tuple = prep_db
 
         # Create the serializer and the data it should use to create an object
-        class RelModelSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
 
         data = {
-            'fk_field': generic_instance.pk,
+            'fk_field': fk_tuple.instance.pk,
             # Directly setting Many-to-Many fields is prohibited
-            #  we test this field later, in test_relation_update
         }
 
         # Confirm that the serializer sees valid data as valid
-        serializer = RelModelSerializer(data=data)
+        serializer = TestSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that this data can be saved
+        # Serializer should be able to save valid data correctly
         instance = serializer.save()
-        assert instance.fk_field.pk == generic_data['pk']
-        assert instance.fk_field.comma_int == generic_data['comma_int']
 
-    def test_deep_create(self):
+        expect_dict = {
+            'fk_field': fk_tuple.instance,
+            'control_val': 'CONTROL',
+        }
+
+        # Confirm that the instance contains the correct data
+        instance_matches_data(instance, data=expect_dict)
+
+    def test_deep_create(self, instance_matches_data, prep_db):
         """
         Confirm that attempting to save a nested serialization of a
-        a relation will fail by default (as is the case in DRF), but
-        providing an explicit serializer overrides this
+        a relation will fail by default (as is the case in DRF)
         """
-        # Set up the referenced model instances in the database
-        generic_data = {
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 12.345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        }
+        fk_tuple, mtm_tuple = prep_db
 
-        generic_instance = test_models.GenericModel.objects.create(**generic_data)
-
-        generic_data.update({'pk': generic_instance.pk})
-
-        mfk_data = {'_id': ObjectId()}
-
-        mfk_instance = test_models.ReverseRelatedModel.objects.create(**mfk_data)
-
-        mfk_data.update({'pk': mfk_instance.pk})
-
-        # Initial serializer with read-only default
-        class InitialTestSerializer(rmd_ser.DjongoModelSerializer):
-            # Writable relation fields require explicit field creation in DRF
+        # Create the serializer and data it should use to create an object
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
         data = {
-            'fk_field': generic_instance.pk,
-            'mfk_field': [mfk_instance.pk]
+            'fk_field': fk_tuple.instance,
+            # Directly setting Many-to-Many fields is prohibited
         }
 
         # Confirm that the serializer sees valid data as valid
-        serializer = InitialTestSerializer(data=data)
+        serializer = TestSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
 
-        # Foreign keys should have been stripped during validation
-        self.assertDictEqual(serializer.validated_data, {})
-
-        # Confirm that the data can still be saved, just sans relations
+        # Confirm the serializer still saves, just sans relation value
         instance = serializer.save()
 
-        # Confirm that the instance does not, in fact, have those fields
-        # One-to-one/many fields do not get object managers
-        assert getattr(instance, 'fk_field', None) is None
+        expect_dict = {
+            'control_val': 'CONTROL',
+            'fk_field_id': None  # Pointer exists, but points to nothing
+        }
 
-        # Many-to-many fields object manager
-        assert list(instance.mfk_field.all()) == []
+        instance_matches_data(instance, expect_dict)
 
-        # Confirm that this default read-only setup can be overridden
-        class NewTestSerializer(rmd_ser.DjongoModelSerializer):
-            fk_field = drf_ser.PrimaryKeyRelatedField(
-                queryset=test_models.GenericModel.objects.all()
+        # fk_field should not exist, as the pk to generate it was not used
+        with raises(AssertionError) as err:
+            expect_dict = {'fk_field': fk_tuple.instance}
+            instance_matches_data(instance, expect_dict)
+
+    def test_custom_create(self, instance_matches_data, prep_db):
+        """
+        Confirm that default, read-only fields can be overridden by the
+        user to allow for writable instances, just like DRF
+        """
+        fk_tuple, mtm_tuple = prep_db
+
+        # Create the serializer and the data it should use to create an object
+        class TestSerializer(DjongoModelSerializer):
+            fk_field = PrimaryKeyRelatedField(
+                queryset=ForeignKeyRelatedModel.objects.all()
             )
-            # ManyToMany writable instances are currently user-defined only
-            # This is WIP however
 
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
-        # Confirm the serializer still regards this data as valid
-        serializer = NewTestSerializer(data=data)
-        assert serializer.is_valid(), serializer.errors
-
-        # Confirm that the serializer can still be saved correctly
-        instance = serializer.save()
-
-        # Confirm that the instance now has an updated fk_field
-        assert instance.fk_field == generic_instance
-
-    def test_root_update(self):
-        """
-        Confirm that updates are allowed for depth = 0 level fields, via
-        the user pointing one-to-one/many fields to the intended new
-        object (which should be updated and managed directly by
-        another serializer)
-        """
-        # Set up the referenced model instances in the database
-        old_generic_data = OrderedDict({
-            'id': 999,
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 1.2345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        })
-
-        generic_instance = test_models.GenericModel.objects.create(
-            **old_generic_data
-        )
-
-        # Preserve the pk for later checks
-        old_generic_data.update({
-            'pk': generic_instance.pk
-        })
-
-        mfk_data = {
-            '_id': ObjectId()
+        data = {
+            'fk_field': fk_tuple.instance.pk
         }
 
-        mfk_instance = test_models.ReverseRelatedModel.objects.create(**mfk_data)
+        # Confirm the serializer still regards this data as valid
+        serializer = TestSerializer(data=data)
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer now saves w/ relation data
+        instance = serializer.save()
+
+        expected_data = {
+            'fk_field': fk_tuple.instance
+        }
+
+        instance_matches_data(instance, expected_data)
+
+    def test_root_update(self, instance_matches_data, prep_db):
+        """
+        Confirm that updates to what an object relates too  are allowed
+        for depth = 0 level fields, via the user pointing one-to-one/many
+        fields to the intended new object
+        """
+        fk_tuple, mtm_tuple = prep_db
 
         old_data = {
-            'fk_field': generic_instance
+            'fk_field': fk_tuple.instance
         }
 
         # Create the initial, to be updated, instance
-        instance = test_models.RelationContainerModel.objects.create(**old_data)
+        instance = RelationContainerModel.objects.create(**old_data)
 
-        instance.mfk_field.add(mfk_instance)
+        instance.mfk_field.add(mtm_tuple.instance)
 
         old_data.update({
-            'pk': instance.pk,
+            '_id': instance.pk,
             'mfk_field': list(instance.mfk_field.all())
         })
 
-        # Try to perform an instance update
-        class TestSerializer(rmd_ser.DjongoModelSerializer):
-            class Meta:
-                model = test_models.RelationContainerModel
-                fields = '__all__'
-
-        new_generic_data = old_generic_data.copy()
-        new_generic_data.update({
-            'id': 123,
-            'float': 3.141392,
-            'date': '2019-06-11'
+        # Prepare data to update the instance with
+        new_fk_data = fk_tuple.data.copy()
+        new_fk_data.update({
+            'null_bool': None,
+            'description': "An alternative instance"
         })
-        new_generic_data.pop('pk')
+        new_fk_data.pop('_id')
 
-        new_generic_instance = test_models.GenericModel.objects.create(
-            **new_generic_data
+        new_fk_instance = ForeignKeyRelatedModel.objects.create(
+            **new_fk_data
         )
 
-        new_generic_data.update({
-            'pk': new_generic_instance.pk
-        })
-
         new_data = {
-            'fk_field': new_generic_instance.pk,
-            # Many-to-one/many cannot be updated directly; trying to do
-            # so will throw an error
+            'fk_field': new_fk_instance.pk,
+            # Many-to-one/many cannot be updated directly by default
         }
+
+        # Try to perform an instance update
+        class TestSerializer(DjongoModelSerializer):
+            class Meta:
+                model = RelationContainerModel
+                fields = '__all__'
 
         serializer = TestSerializer(instance, data=new_data)
 
@@ -554,148 +463,150 @@ class TestIntegration(TestCase):
         assert serializer.is_valid(), serializer.errors
 
         # Confirm that the serializer saves this correctly
-        serializer.save()
-        assert instance.pk == old_data['pk']
-        assert instance.fk_field.pk == new_generic_data['pk']
-        assert instance.fk_field.float == new_generic_data['float']
-        assert [e.pk for e in instance.mfk_field.all()] == [mfk_instance.pk]
+        instance = serializer.save()
 
-    def test_nest_update(self):
-        """
-        Confirm that updates are NOT allowed for depth > 0 level fields
-        by default, though the user can specify an override which would
-        allow them to be
-        """
-        # Set up the referenced model instances in the database
-        old_generic_data = OrderedDict({
-            'id': 999,
-            'big_int': 1234567890,
-            'bool': True,
-            'char': 'Hello World',
-            'comma_int': '1,234',
-            'date': '1997-01-01',
-            'date_time': '1997-01-01 12:34:05',
-            'decimal': 1.2345,
-            'email': 'generic@gen.gen',
-            'float': 5.4321,
-            'integer': -32145,
-            'null_bool': None,
-            'pos_int': 15423,
-            'pos_small_int': 2,
-            'slug': "HEADLINE: HELLO WORLD",
-            'small_int': -1,
-            'text': ("Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-                     "Suspendisse blandit, lectus vitae hendrerit lacinia, ex "
-                     "enim congue purus, efficitur suscipit mauris ligula vitae "
-                     "nunc. Curabitur ultrices in elit in ornare. Aenean sit "
-                     "amet ipsum in nulla tincidunt egestas. Suspendisse "
-                     "convallis metus id nunc scelerisque condimentum. Vivamus "
-                     "gravida hendrerit eleifend. Duis interdum orci sit amet "
-                     "tortor sodales pulvinar. Pellentesque habitant morbi "
-                     "tristique senectus et netus et malesuada fames ac turpis "
-                     "egestas. Praesent pulvinar urna eget condimentum lacinia. "
-                     "Praesent venenatis nisi sit amet ex hendrerit, quis "
-                     "elementum augue condimentum. Fusce sed tortor et sem "
-                     "ullamcorper viverra."),
-            'time': '12:34:05',
-            'url': 'https://lipsum.com/feed/html',
-            'ip': '127.01.01',
-            'uuid': uuid.uuid1(),
-        })
-
-        generic_instance = test_models.GenericModel.objects.create(
-            **old_generic_data
-        )
-
-        # Preserve the pk for later checks
-        old_generic_data.update({
-            'pk': generic_instance.pk
-        })
-
-        mfk_data = {
-            '_id': ObjectId()
+        expected_data = {
+            '_id': old_data['_id'],
+            'fk_field': new_fk_instance,
+            'control_val': 'CONTROL'
         }
 
-        mfk_instance = test_models.ReverseRelatedModel.objects.create(**mfk_data)
+        instance_matches_data(instance, expected_data)
+
+        # Special case: Many-to-Many fields are auto-generated managers
+        assert list(instance.mfk_field.all()) == old_data['mfk_field']
+
+    def test_deep_update(self, instance_matches_data, prep_db):
+        """
+        Confirm that updates are NOT allowed for depth > 0 level fields
+        by default, though non-relational fields remain able to update
+        """
+        # Set up the referenced model instances in the database
+        fk_tuple, mtm_tuple = prep_db
 
         old_data = {
-            'fk_field': generic_instance
+            'fk_field': fk_tuple.instance
         }
 
         # Create the initial, to be updated, instance
-        instance = test_models.RelationContainerModel.objects.create(**old_data)
+        instance = RelationContainerModel.objects.create(**old_data)
 
-        instance.mfk_field.add(mfk_instance)
+        instance.mfk_field.add(mtm_tuple.instance)
 
         old_data.update({
-            'pk': instance.pk,
+            '_id': instance.pk,
             'mfk_field': list(instance.mfk_field.all())
         })
 
+        # Prepare data to update the instance with
+        new_fk_data = fk_tuple.data.copy()
+        new_fk_data.update({
+            'null_bool': None,
+            'description': "An alternative instance"
+        })
+        new_fk_data.pop('_id')
+
+        new_fk_instance = ForeignKeyRelatedModel.objects.create(
+            **new_fk_data
+        )
+
+        new_data = {
+            'fk_field': new_fk_instance.pk,
+            'control_val': "NEW CONTROL"
+        }
+
         # Try to perform an instance update
-        class OldTestSerializer(rmd_ser.DjongoModelSerializer):
+        class TestSerializer(DjongoModelSerializer):
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
-        new_generic_data = old_generic_data.copy()
-        new_generic_data.update({
-            'id': 123,
-            'float': 3.141392,
-            'date': '2019-06-11'
-        })
-        new_generic_data.pop('pk')
-
-        new_generic_instance = test_models.GenericModel.objects.create(
-            **new_generic_data
-        )
-
-        new_generic_data.update({
-            'pk': new_generic_instance.pk
-        })
-
-        new_data = {
-            'fk_field': new_generic_instance.pk,
-            # Many-to-one/many cannot be updated directly; trying to do
-            # so will throw an error
-        }
-
-        serializer = OldTestSerializer(instance, data=new_data)
+        serializer = TestSerializer(instance, data=new_data)
 
         # Serializer should be valid
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the serializer saves this correctly, without
-        # updating fk_field
-        serializer.save()
-        assert instance.pk == old_data['pk']
-        assert instance.fk_field.pk == old_generic_data['pk']
-        assert instance.fk_field.float == old_generic_data['float']
-        assert [e.pk for e in instance.mfk_field.all()] == [mfk_instance.pk]
+        # Confirm that the serializer saves updated data
+        instance = serializer.save()
 
-        # Try to update again, with an explicitly declared field which
-        # is writable
-        class NewTestSerializer(rmd_ser.DjongoModelSerializer):
-            fk_field = drf_ser.PrimaryKeyRelatedField(
-                queryset=test_models.GenericModel.objects.all(),
-                read_only=False
+        expected_data = {
+            '_id': old_data['_id'],
+            'fk_field_id': None,
+            'control_val': 'NEW CONTROL'
+        }
+
+        instance_matches_data(instance, expected_data)
+
+        # Confirm that fk_field was NOT updated
+        with raises(AssertionError):
+            expected_data = {'fk_field': new_fk_instance}
+            instance_matches_data(instance, expected_data)
+
+    def test_custom_update(self, instance_matches_data, prep_db):
+        """
+        Confirm that default, read-only fields can be overridden by the
+        user to allow for updating instances, just like DRF
+        """
+        fk_tuple, mtm_tuple = prep_db
+
+        old_data = {
+            'fk_field': fk_tuple.instance
+        }
+
+        # Create the initial, to be updated, instance
+        instance = RelationContainerModel.objects.create(**old_data)
+
+        instance.mfk_field.add(mtm_tuple.instance)
+
+        old_data.update({
+            '_id': instance.pk,
+            'mfk_field': list(instance.mfk_field.all())
+        })
+
+        # Prepare data to update the instance with
+        new_fk_data = fk_tuple.data.copy()
+        new_fk_data.update({
+            'null_bool': None,
+            'description': "An alternative instance"
+        })
+        new_fk_data.pop('_id')
+
+        new_fk_instance = ForeignKeyRelatedModel.objects.create(
+            **new_fk_data
+        )
+
+        new_data = {
+            'fk_field': new_fk_instance.pk,
+            'control_val': "NEW CONTROL"
+        }
+
+        # Try to perform an instance update
+        class TestSerializer(DjongoModelSerializer):
+            fk_field = PrimaryKeyRelatedField(
+                queryset=ForeignKeyRelatedModel.objects.all()
             )
 
             class Meta:
-                model = test_models.RelationContainerModel
+                model = RelationContainerModel
                 fields = '__all__'
                 depth = 1
 
-        serializer = NewTestSerializer(instance, data=new_data)
+        serializer = TestSerializer(instance, data=new_data)
 
         # Serializer should be valid
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the serializer saves this correctly, without
-        # updating fk_field
-        serializer.save()
-        assert instance.pk == old_data['pk']
-        assert instance.fk_field.pk == new_generic_data['pk']
-        assert instance.fk_field.float == new_generic_data['float']
-        assert [e.pk for e in instance.mfk_field.all()] == [mfk_instance.pk]
+        # Confirm that the serializer saves this correctly
+        instance = serializer.save()
+
+        expected_data = {
+            '_id': old_data['_id'],
+            'fk_field': new_fk_instance,
+            'control_val': 'NEW CONTROL'
+        }
+
+        instance_matches_data(instance, expected_data)
+
+        # Special case: Many-to-Many fields are auto-generated managers
+        assert list(instance.mfk_field.all()) == old_data['mfk_field']
