@@ -21,8 +21,6 @@ class TestMapping(object):
         relations to other models, w/o custom field selection
         """
         class TestSerializer(DjongoModelSerializer):
-            # DRF usually expects explicit field declaration:
-            # Just to check, however, we'll try auto-building the fields
             class Meta:
                 model = RelationContainerModel
                 fields = '__all__'

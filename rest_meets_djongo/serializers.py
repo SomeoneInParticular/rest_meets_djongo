@@ -394,7 +394,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                 )
 
                 fields.remove(field_name)
-        # If the user specify a set of fields to include/exclude
+        # If the user failed to specify a set of fields to include/exclude
         else:
             raise AssertionError(
                 "Creating a ModelSerializer without either the 'fields' attribute "
@@ -411,13 +411,14 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
     def get_default_field_names(self, declared_fields, model_info):
         """Provide the list of fields included when `__all__` is used"""
-        return (
+        ret = (
             [model_info.pk.name] +
             list(declared_fields.keys()) +
             list(model_info.fields.keys()) +
             list(model_info.forward_relations.keys()) +
             list(model_info.embedded.keys())
         )
+        return ret
 
     def get_nested_field_customization(self, field_name):
         """

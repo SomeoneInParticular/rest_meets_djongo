@@ -1,6 +1,5 @@
 from djongo import models
 
-from datetime import datetime
 
 # --- Basic Models --- #
 # Generic, DRF compliant model, with all DRF fields
@@ -84,7 +83,8 @@ class EmbedModel(models.Model):
 # Model for use w/ testing nested embedded models,
 class ContainerModel(models.Model):
     _id = models.ObjectIdField()
-    embed_field = models.EmbeddedModelField(model_container=EmbedModel)
+    embed_field = models.EmbeddedModelField(model_container=EmbedModel,
+                                            blank=True)
 
     objects = models.DjongoManager()
 
@@ -94,7 +94,7 @@ class ContainerModel(models.Model):
 
 # Model for testing w/ embedded models which contain embedded models
 class DeepContainerModel(models.Model):
-    str_id = models.CharField(primary_key=True)
+    str_id = models.CharField(primary_key=True, max_length=10)
     deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
 
     objects = models.DjongoManager()

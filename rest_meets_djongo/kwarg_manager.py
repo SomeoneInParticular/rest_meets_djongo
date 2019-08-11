@@ -3,8 +3,7 @@ from rest_framework.utils import field_mapping
 
 def get_generic_embed_kwargs(embed_info):
     """Fetch a generic set of kwargs for an embedded model field"""
-    kwargs = {'read_only': True}
-    kwargs['model_field'] = embed_info.model_field
+    kwargs = {'read_only': True, 'model_field': embed_info.model_field}
     return kwargs
 
 
