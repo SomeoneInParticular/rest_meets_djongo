@@ -6,7 +6,7 @@ from rest_meets_djongo.serializers import \
 
 from tests.models import ContainerModel, EmbedModel, DeepContainerModel
 
-from pytest import fixture, mark, raises
+from pytest import fixture, mark
 
 
 @mark.embed

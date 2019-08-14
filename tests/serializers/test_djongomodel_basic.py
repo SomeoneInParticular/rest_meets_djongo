@@ -253,12 +253,19 @@ class TestMapping(object):
 @mark.serializer
 @mark.django_db
 class TestIntegration(object):
+    # -- Fixtures -- #
+    @fixture
+    def initial_instance(self):
+        obj_data = {'int_field': 55, 'char_field': 'Foo'}
+
+        return ObjIDModel.objects.create(**obj_data)
+
+    # -- Tests -- #
     @mark.parametrize(
-        ["initial", "serializer", "expected", "missing"],
+        ["serializer", "expected", "missing"],
         [
             param(
                 # Basic functionality
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'target': ObjIDModel},
                 {'int_field': 55, 'char_field': 'Foo'},
                 None,
@@ -266,7 +273,6 @@ class TestIntegration(object):
             ),
             param(
                 # Serializer w/ specified field list
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'target': ObjIDModel, 'meta_fields': ['int_field']},
                 {'int_field': 55},
                 {'char_field': 'Foo'},
@@ -274,7 +280,6 @@ class TestIntegration(object):
             ),
             param(
                 # Serializer w/ specified excluded field
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'target': ObjIDModel, 'meta_exclude': ['int_field']},
                 {'char_field': 'Foo'},
                 {'int_field': 55},
@@ -282,7 +287,6 @@ class TestIntegration(object):
             ),
             param(
                 # Serializer w/ custom user field
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'target': ObjIDModel, 'custom_fields': {
                     'str_rep': SerializerMethodField(),
                 }, 'custom_methods': {
@@ -294,19 +298,12 @@ class TestIntegration(object):
                 None,
                 id='custom_field'
             ),
-            param(
-                {'int_field': 55},
-                {'target': ObjIDModel},
-                {'int_field': 55, 'char_field': ''},
-                None,
-                id='bad_db_entry'
-            )
         ])
     def test_retrieve(self, build_serializer, does_a_subset_b,
-                      initial, serializer, expected, missing):
+                      initial_instance, serializer, expected, missing):
         """Confirm that the serializer correctly retrieves data"""
         # Prepare the test environment
-        instance = serializer['target']._default_manager.create(**initial)
+        instance = initial_instance
 
         TestSerializer = build_serializer(**serializer)
         serializer = TestSerializer(instance)
@@ -411,11 +408,10 @@ class TestIntegration(object):
             serializer.save()
 
     @mark.parametrize(
-        ["initial", "update", "serializer", "expected"],
+        ["update", "serializer", "expected"],
         [
             param(
                 # Generic test
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45, 'char_field': 'Bar'},
                 {'target': ObjIDModel},
                 {'int_field': 45, 'char_field': 'Bar'},
@@ -423,7 +419,6 @@ class TestIntegration(object):
             ),
             param(
                 # Meta `fields` functions (allows pseudo-partial updates)
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45},
                 {'target': ObjIDModel, 'meta_fields': ['int_field']},
                 {'int_field': 45, 'char_field': 'Foo'},
@@ -431,7 +426,6 @@ class TestIntegration(object):
             ),
             param(
                 # Meta `exclude` functions (allows pseudo-partial updates)
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'char_field': 'Bar'},
                 {'target': ObjIDModel, 'meta_exclude': ['int_field']},
                 {'int_field': 55, 'char_field': 'Bar'},
@@ -439,7 +433,6 @@ class TestIntegration(object):
             ),
             param(
                 # Custom field setups are applied
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45},
                 {'target': ObjIDModel, 'custom_fields': {
                     'char_field': CharField(default='Bar', max_length=3)
@@ -449,9 +442,9 @@ class TestIntegration(object):
             ),
         ])
     def test_valid_update(self, build_serializer, instance_matches_data,
-                          initial, update, serializer, expected):
+                          initial_instance, update, serializer, expected):
         # Prepare the test environment
-        instance = serializer['target']._default_manager.create(**initial)
+        instance = initial_instance
 
         TestSerializer = build_serializer(**serializer)
         serializer = TestSerializer(instance, data=update)
@@ -466,11 +459,10 @@ class TestIntegration(object):
         instance_matches_data(instance, expected)
 
     @mark.parametrize(
-        ["initial", "update", "serializer", "error"],
+        ["update", "serializer", "error"],
         [
             param(
                 # Partial update attempted
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45},
                 {'target': ObjIDModel},
                 AssertionError,
@@ -478,7 +470,6 @@ class TestIntegration(object):
             ),
             param(
                 # Data w/ bad value caught
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45, 'char_field': True},
                 {'target': ObjIDModel},
                 AssertionError,
@@ -486,7 +477,6 @@ class TestIntegration(object):
             ),
             param(
                 # Validation error caught
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45, 'char_field': 'Foo-Bar'},
                 {'target': ObjIDModel},
                 AssertionError,
@@ -494,9 +484,9 @@ class TestIntegration(object):
             ),
         ])
     def test_invalid_update(self, build_serializer, instance_matches_data,
-                            initial, update, serializer, error):
+                            initial_instance, update, serializer, error):
         # Prepare the test environment
-        instance = serializer['target']._default_manager.create(**initial)
+        instance = initial_instance
 
         TestSerializer = build_serializer(**serializer)
         serializer = TestSerializer(instance, data=update)
@@ -508,11 +498,10 @@ class TestIntegration(object):
             serializer.save()
 
     @mark.parametrize(
-        ["initial", "update", "serializer", "expected"],
+        ["update", "serializer", "expected"],
         [
             param(
                 # Generic test
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'char_field': 'Bar'},
                 {'target': ObjIDModel},
                 {'int_field': 55, 'char_field': 'Bar'},
@@ -520,7 +509,6 @@ class TestIntegration(object):
             ),
             param(
                 # Defaults should be ignored during partial updates
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'int_field': 45},
                 {'target': ObjIDModel, 'custom_fields': {
                     'char_field': CharField(default='Bar', max_length=3)
@@ -528,12 +516,11 @@ class TestIntegration(object):
                 {'int_field': 45, 'char_field': 'Foo'},
                 id='default_ignored'
             )
-        ]
-    )
+        ])
     def test_valid_partial_update(self, build_serializer, instance_matches_data,
-                                  initial, update, serializer, expected):
+                                  initial_instance, update, serializer, expected):
         # Prepare the test environment
-        instance = serializer['target']._default_manager.create(**initial)
+        instance = initial_instance
 
         TestSerializer = build_serializer(**serializer)
         serializer = TestSerializer(instance, data=update, partial=True)
@@ -548,11 +535,10 @@ class TestIntegration(object):
         instance_matches_data(instance, expected)
 
     @mark.parametrize(
-        ["initial", "update", "serializer", "error"],
+        ["update", "serializer", "error"],
         [
             param(
                 # Data w/ bad value caught
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'char_field': True},
                 {'target': ObjIDModel},
                 AssertionError,
@@ -560,7 +546,6 @@ class TestIntegration(object):
             ),
             param(
                 # Validation error caught
-                {'int_field': 55, 'char_field': 'Foo'},
                 {'char_field': 'Foo-Bar'},
                 {'target': ObjIDModel},
                 AssertionError,
@@ -568,9 +553,9 @@ class TestIntegration(object):
             ),
         ])
     def test_invalid_partial_update(self, build_serializer, instance_matches_data,
-                            initial, update, serializer, error):
+                            initial_instance, update, serializer, error):
         # Prepare the test environment
-        instance = serializer['target']._default_manager.create(**initial)
+        instance = initial_instance
 
         TestSerializer = build_serializer(**serializer)
         serializer = TestSerializer(instance, data=update, partial=True)
