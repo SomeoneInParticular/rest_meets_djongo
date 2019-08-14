@@ -11,7 +11,6 @@ def format_dict(expect_dict):
     This allows for very unusual cases or otherwise tricky-to-test cases
     to still be tested easily via string comparision
     """
-
     expect_list = []
 
     for name, val in expect_dict.items():

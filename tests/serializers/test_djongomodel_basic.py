@@ -1,14 +1,15 @@
 from django.core.exceptions import ImproperlyConfigured
 import rest_framework.fields as drf_fields
-from rest_framework.serializers import ReadOnlyField
-import pytest
+from rest_framework.serializers import (
+    BooleanField, CharField, ReadOnlyField, SerializerMethodField
+)
 
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo.serializers import DjongoModelSerializer
 
 from tests.models import GenericModel, ObjIDModel, OptionsModel
 
-from pytest import fixture, mark
+from pytest import fixture, mark, param, raises
 
 
 @mark.basic
@@ -171,7 +172,7 @@ class TestMapping(object):
                 model = ObjIDModel
                 fields = ['id', 'invalid']
 
-        with pytest.raises(ImproperlyConfigured):
+        with raises(ImproperlyConfigured):
             fields_vals = TestSerializer().get_fields()
             print(fields_vals)
 
@@ -188,7 +189,7 @@ class TestMapping(object):
                 model = ObjIDModel
                 fields = ['id']
 
-        with pytest.raises(AssertionError):
+        with raises(AssertionError):
             field_vals = TestSerializer().get_fields()
             print(field_vals)
 
@@ -252,107 +253,330 @@ class TestMapping(object):
 @mark.serializer
 @mark.django_db
 class TestIntegration(object):
-    # Valid, generic data for the ObjectIdModel instance
-    generic_data = {
-        'int_field': 55,
-        'char_field': 'Foo'
-    }
+    @mark.parametrize(
+        ["initial", "serializer", "expected", "missing"],
+        [
+            param(
+                # Basic functionality
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'target': ObjIDModel},
+                {'int_field': 55, 'char_field': 'Foo'},
+                None,
+                id='basic'
+            ),
+            param(
+                # Serializer w/ specified field list
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'target': ObjIDModel, 'meta_fields': ['int_field']},
+                {'int_field': 55},
+                {'char_field': 'Foo'},
+                id='respects_fields'
+            ),
+            param(
+                # Serializer w/ specified excluded field
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'target': ObjIDModel, 'meta_exclude': ['int_field']},
+                {'char_field': 'Foo'},
+                {'int_field': 55},
+                id='respects_exclude'
+            ),
+            param(
+                # Serializer w/ custom user field
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'str_rep': SerializerMethodField(),
+                }, 'custom_methods': {
+                    'get_str_rep':
+                        (lambda self, obj: f"({obj.int_field}, {obj.char_field})"),
+                }},
+                {'int_field': 55, 'char_field': 'Foo',
+                 'str_rep': '(55, Foo)'},
+                None,
+                id='custom_field'
+            ),
+            param(
+                {'int_field': 55},
+                {'target': ObjIDModel},
+                {'int_field': 55, 'char_field': ''},
+                None,
+                id='bad_db_entry'
+            )
+        ])
+    def test_retrieve(self, build_serializer, does_a_subset_b,
+                      initial, serializer, expected, missing):
+        """Confirm that the serializer correctly retrieves data"""
+        # Prepare the test environment
+        instance = serializer['target']._default_manager.create(**initial)
 
-    @fixture(scope='function')
-    def initial_instance(self):
-        instance = ObjIDModel.objects.create(**self.generic_data)
-        return instance
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(instance)
 
-    def test_retrieve(self, assert_dict_equals, initial_instance):
-        """
-        Confirm that existing instances of models with basic fields
-        can still be retrieved and serialized correctly
-        """
-        class TestSerializer(DjongoModelSerializer):
-            class Meta:
-                model = ObjIDModel
-                fields = '__all__'
+        # Make sure fields which should exist do
+        does_a_subset_b(expected, serializer.data)
 
-        serializer = TestSerializer(initial_instance)
+        # Make sure fields which should be ignored are
+        if missing:
+            with raises(AssertionError):
+                does_a_subset_b(missing, serializer.data)
 
-        expect_data = {'_id': str(initial_instance.pk)}
-        expect_data.update(self.generic_data.copy())
+    @mark.parametrize(
+        ["initial", "serializer", "expected"],
+        [
+            param(
+                # Generic test
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'target': ObjIDModel},
+                {'int_field': 55, 'char_field': 'Foo'},
+                id='basic'
+            ),
+            param(
+                # Confirm that the user can override field functions
+                {'int_field': 55},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'char_field':
+                        CharField(default='Bar', max_length=3)
+                }},
+                {'int_field': 55, 'char_field': 'Bar'},
+                id='user_override'
+            ),
+        ])
+    def test_valid_create(self, build_serializer, instance_matches_data,
+                          initial, serializer, expected):
+        # Prepare the test environment
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(data=initial)
 
-        assert_dict_equals(expect_data, serializer.data)
-
-    def test_create(self, instance_matches_data):
-        """
-        Confirm that new instances of models with basic fields can still
-        be generated and saved correctly from raw data
-        """
-        class TestSerializer(DjongoModelSerializer):
-            class Meta:
-                model = ObjIDModel
-                fields = '__all__'
-
-        # Serializer should validate
-        serializer = TestSerializer(data=self.generic_data)
+        # Confirm that input data is valid
         assert serializer.is_valid(), serializer.errors
 
-        # Serializer should be able to save valid data correctly
+        # Make sure the serializer can save the data
         instance = serializer.save()
 
-        # Confirm that the instance contains the correct data
-        instance_matches_data(instance, self.generic_data)
+        # Confirm that data was saved correctly
+        instance_matches_data(instance, expected)
 
-    def test_update(self, instance_matches_data, initial_instance):
-        """
-        Confirm that existing instances of models with basic fields can
-        still be updated when provided with new raw data
-        """
-        class TestSerializer(DjongoModelSerializer):
-            class Meta:
-                model = ObjIDModel
-                fields = '__all__'
+    @mark.parametrize(
+        ["initial", "serializer", "error"],
+        [
+            param(
+                # Missing values are caught
+                {'int_field': 55},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='missing_input'
+            ),
+            param(
+                # Incorrectly typed values are caught
+                {'int_field': 55, 'char_field': True},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='bad_input_type'
+            ),
+            param(
+                # Missing custom values are caught
+                {'int_field': 55, 'char_field': 'Bar'},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'bool_field': BooleanField()
+                }},
+                AssertionError,
+                id='missing_custom_field'
+            ),
+            param(
+                # Custom fields w/o a corresponding model field are caught
+                {'int_field': 55, 'char_field': 'Foo', 'bool_field': True},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'bool_field': BooleanField()
+                }},
+                TypeError,
+                id='bad_custom_field'
+            ),
+            param(
+                # Validation error caught
+                {'int_field': 55, 'char_field': 'Foo-Bar'},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='invalid_value'
+            ),
+        ])
+    def test_invalid_create(self, build_serializer, instance_matches_data,
+                            initial, serializer, error):
+        # Prepare the test environment
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(data=initial)
 
-        new_data = {
-            'int_field': 1234,
-            'char_field': 'Bar'
-        }
+        # Confirm that the serializer throws the designated error
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
 
-        serializer = TestSerializer(initial_instance, data=new_data)
+            serializer.save()
 
-        # Confirm that the partial update data is valid
+    @mark.parametrize(
+        ["initial", "update", "serializer", "expected"],
+        [
+            param(
+                # Generic test
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45, 'char_field': 'Bar'},
+                {'target': ObjIDModel},
+                {'int_field': 45, 'char_field': 'Bar'},
+                id='basic'
+            ),
+            param(
+                # Meta `fields` functions (allows pseudo-partial updates)
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45},
+                {'target': ObjIDModel, 'meta_fields': ['int_field']},
+                {'int_field': 45, 'char_field': 'Foo'},
+                id='respects_fields'
+            ),
+            param(
+                # Meta `exclude` functions (allows pseudo-partial updates)
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'char_field': 'Bar'},
+                {'target': ObjIDModel, 'meta_exclude': ['int_field']},
+                {'int_field': 55, 'char_field': 'Bar'},
+                id='respects_exclude'
+            ),
+            param(
+                # Custom field setups are applied
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'char_field': CharField(default='Bar', max_length=3)
+                }},
+                {'int_field': 45, 'char_field': 'Bar'},
+                id='custom_field'
+            ),
+        ])
+    def test_valid_update(self, build_serializer, instance_matches_data,
+                          initial, update, serializer, expected):
+        # Prepare the test environment
+        instance = serializer['target']._default_manager.create(**initial)
+
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(instance, data=update)
+
+        # Confirm that serializer data is valid
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the serializer saves this updated instance correctly
-        serializer.save()
-        # Add the pk field to make sure a new instance wasn't created
-        new_data.update({'_id': initial_instance.pk})
+        # Confirm that the serializer can save the data
+        instance = serializer.save()
 
-        # Confirm that the instance contains the correct data
-        instance_matches_data(initial_instance, new_data)
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
 
-    def test_partial_update(self, instance_matches_data, initial_instance):
-        """
-        Confirm that existing instances of models with basic fields can
-        still be updated when provided with new partial data
-        """
-        class TestSerializer(DjongoModelSerializer):
-            class Meta:
-                model = ObjIDModel
-                fields = '__all__'
+    @mark.parametrize(
+        ["initial", "update", "serializer", "error"],
+        [
+            param(
+                # Partial update attempted
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='missing_value'
+            ),
+            param(
+                # Data w/ bad value caught
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45, 'char_field': True},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='wrong_type'
+            ),
+            param(
+                # Validation error caught
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45, 'char_field': 'Foo-Bar'},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='invalid_value'
+            ),
+        ])
+    def test_invalid_update(self, build_serializer, instance_matches_data,
+                            initial, update, serializer, error):
+        # Prepare the test environment
+        instance = serializer['target']._default_manager.create(**initial)
 
-        partial_data = {
-            'int_field': 1234,
-        }
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(instance, data=update)
 
-        serializer = TestSerializer(initial_instance, data=partial_data, partial=True)
+        # Confirm that the serializer throws the designated error
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the partial update data is valid
+            serializer.save()
+
+    @mark.parametrize(
+        ["initial", "update", "serializer", "expected"],
+        [
+            param(
+                # Generic test
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'char_field': 'Bar'},
+                {'target': ObjIDModel},
+                {'int_field': 55, 'char_field': 'Bar'},
+                id='basic'
+            ),
+            param(
+                # Defaults should be ignored during partial updates
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'int_field': 45},
+                {'target': ObjIDModel, 'custom_fields': {
+                    'char_field': CharField(default='Bar', max_length=3)
+                }},
+                {'int_field': 45, 'char_field': 'Foo'},
+                id='default_ignored'
+            )
+        ]
+    )
+    def test_valid_partial_update(self, build_serializer, instance_matches_data,
+                                  initial, update, serializer, expected):
+        # Prepare the test environment
+        instance = serializer['target']._default_manager.create(**initial)
+
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(instance, data=update, partial=True)
+
+        # Confirm that serializer data is valid
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the serializer saves this correctly
-        new_instance = serializer.save()
+        # Confirm that the serializer can save the data
+        instance = serializer.save()
 
-        # Confirm that only specified values were changed
-        new_data = {'_id': initial_instance.pk}
-        new_data.update(self.generic_data)
-        new_data.update(partial_data)
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
 
-        instance_matches_data(new_instance, new_data)
+    @mark.parametrize(
+        ["initial", "update", "serializer", "error"],
+        [
+            param(
+                # Data w/ bad value caught
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'char_field': True},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='wrong_type'
+            ),
+            param(
+                # Validation error caught
+                {'int_field': 55, 'char_field': 'Foo'},
+                {'char_field': 'Foo-Bar'},
+                {'target': ObjIDModel},
+                AssertionError,
+                id='invalid_value'
+            ),
+        ])
+    def test_invalid_partial_update(self, build_serializer, instance_matches_data,
+                            initial, update, serializer, error):
+        # Prepare the test environment
+        instance = serializer['target']._default_manager.create(**initial)
+
+        TestSerializer = build_serializer(**serializer)
+        serializer = TestSerializer(instance, data=update, partial=True)
+
+        # Confirm that the serializer throws the designated error
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
+
+            serializer.save()

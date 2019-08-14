@@ -411,14 +411,13 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
     def get_default_field_names(self, declared_fields, model_info):
         """Provide the list of fields included when `__all__` is used"""
-        ret = (
+        return (
             [model_info.pk.name] +
             list(declared_fields.keys()) +
             list(model_info.fields.keys()) +
             list(model_info.forward_relations.keys()) +
             list(model_info.embedded.keys())
         )
-        return ret
 
     def get_nested_field_customization(self, field_name):
         """
