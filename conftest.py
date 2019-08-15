@@ -1,4 +1,4 @@
-from typing import Callable, List, Dict, Type
+from typing import Callable, List, Dict, Type, Union
 
 from django.db.models import Model
 from rest_framework.serializers import ModelSerializer
@@ -25,27 +25,29 @@ def _meta_factory(
     :param exclude: Fields to ignore during serialization
     :return: A Meta class, ready for use in a serializer
     """
+    from rest_framework.serializers import SerializerMetaclass
     # Confirm that one or none of the fields/exclude arguments are present
     if fields and exclude:
         raise ValueError("Cannot set both fields and exclude attribute")
 
-    # Build the Meta for the serializer
-    class Meta:
-        model = target
+    # Prepare the class attributes
+    attributes = {'model': target}
 
-    # Serialized field collection
+    # Field targeting attributes
     if fields:
-        Meta.fields = fields
+        attributes['fields'] = fields
     elif exclude:
-        Meta.exclude = exclude
+        attributes['exclude'] = exclude
     else:
-        Meta.fields = '__all__'
+        attributes['fields'] = '__all__'
 
-    # Depth of serialization setup
+    # Depth attribute setup
     if relate_depth:
-        Meta.depth = relate_depth
+        attributes['depth'] = relate_depth
     if embed_depth:
-        Meta.embed_depth = embed_depth
+        attributes['embed_depth'] = embed_depth
+
+    Meta = type('Meta', (), attributes)
 
     return Meta
 
@@ -61,7 +63,7 @@ def build_serializer():
             name: str = "TestSerializer",
             meta_fields: List[str] = None,
             meta_exclude: List[str] = None,
-            custom_fields: Dict[str, Field] = None,
+            custom_fields: Dict[str, Union[Field, dict]] = None,
             custom_methods: Dict[str, Callable] = None,
             ) -> Type[ModelSerializer]:
         """
@@ -70,28 +72,44 @@ def build_serializer():
         :param relate_depth: The depth of relations to serialize
         :param embed_depth: The depth of embedded models to serializer
         :param name: Custom name of the serializer
-        :param meta_fields: Fields the serializer should serialize
+        :param meta_fields: Fields the serializer should serialize.
         :param meta_exclude: Fields the serializer should ignore
         :param custom_fields: Custom DRF/RMD serializer fields to use
+            Pass in either a pre-built field, or a dictionary of
+            attributes which should be used to build a new serializer
+            (which itself would act as a field)
         :param custom_methods: Custom methods the serializer should use
         :param base_class: The class the serializer should derive from
         :return: A serializer class with the specified attributes
         """
-        # Prepare the attributes for the new serializer, with its new Meta
-        attributes = {
-            'Meta': _meta_factory(target, relate_depth, embed_depth,
-                                  meta_fields, meta_exclude)
-        }
+        # Initialize the attributes dictionary
+        attributes = {'__qualname__': name}
 
         # Add in custom field attributes
         if custom_fields:
             for name, field in custom_fields.items():
-                attributes[name] = field
+                if isinstance(field, dict):
+                    # Build the meta-class
+                    field['name'] = field.get('name', 'EmbeddedSerializer')
+                    EmbedSerializer = _serializer_factory(**field)
+                    # Build a field instance which reflects the metaclass
+                    attributes[name] = EmbedSerializer()
+                elif isinstance(field, Field):
+                    attributes[name] = field
+                else:
+                    raise TypeError(
+                        "Only `dict` or `field` instances are allowed.\n"
+                        f"Value {name} was of type `{type(field)}` instead.")
 
         # Add in custom method attributes
         if custom_methods:
             for name, method in custom_methods.items():
                 attributes[name] = method
+
+        # Add in Meta (this MUST go last to avoid issues)
+        attributes['Meta'] = _meta_factory(target, relate_depth,
+                                           embed_depth, meta_fields,
+                                           meta_exclude)
 
         Serializer = type(name, (base_class,), attributes)
 

@@ -480,9 +480,9 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
         Assumes basic verification has already been done
         """
-        if customization.fields is not None:
+        if customization.fields:
             serializer.Meta.fields = customization.fields
-        else:
+        elif customization.exclude:
             serializer.Meta.exclude = customization.exclude
 
         # Apply extra_kwargs
@@ -498,6 +498,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         if field_name in info.fields_and_pk:
             model_field = info.fields_and_pk[field_name]
             return self.build_standard_field(field_name, model_field)
+
         # Relational field construction
         elif field_name in info.relations:
             relation_info = info.relations[field_name]
@@ -505,6 +506,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                 return self.build_relational_field(field_name, relation_info)
             else:
                 return self.build_nested_relation_field(field_name, relation_info, nested_depth)
+
         # Embedded field construction
         elif field_name in info.embedded:
             embed_info = info.embedded[field_name]
@@ -513,12 +515,15 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                 return self.build_root_embed_field(field_name, embed_info)
             else:
                 return self.build_nested_embed_field(field_name, embed_info, embed_depth)
+
         # Property field construction
         elif hasattr(model_class, field_name):
             return self.build_property_field(field_name, model_class)
+
         # URL field construction
         elif field_name == self.url_field_name:
             return self.build_url_field(field_name, model_class)
+
         # If all mapping above fails,
         return self.build_unknown_field(field_name, model_class)
 
@@ -556,9 +561,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         class EmbeddedSerializer(subclass):
             class Meta:
                 model = embed_info.model_field.model_container
+                fields = '__all__'
                 embed_depth = depth - 1
 
-        # Apply customization to the nested field
+        # Apply customization to the nested field, if any is provided
+
         customization = self.get_nested_field_customization(field_name)
         self.apply_customization(EmbeddedSerializer, customization)
 
