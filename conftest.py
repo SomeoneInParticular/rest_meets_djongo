@@ -4,7 +4,8 @@ from django.db.models import Model
 from rest_framework.serializers import ModelSerializer
 from rest_framework.serializers import Field
 
-from rest_meets_djongo.serializers import DjongoModelSerializer
+from rest_meets_djongo.serializers import \
+    DjongoModelSerializer, EmbeddedModelSerializer
 
 from pytest import fixture, mark
 
@@ -65,10 +66,12 @@ def build_serializer():
             meta_exclude: List[str] = None,
             custom_fields: Dict[str, Union[Field, dict]] = None,
             custom_methods: Dict[str, Callable] = None,
-            ) -> Type[ModelSerializer]:
+            **kwargs
+            ) -> (Type[ModelSerializer], Dict):
         """
         Build a custom model serializer, for testing purposes
         :param target: The model the serializer should serialize
+        :param base_class: The class the serializer should derive from
         :param relate_depth: The depth of relations to serialize
         :param embed_depth: The depth of embedded models to serializer
         :param name: Custom name of the serializer
@@ -79,8 +82,9 @@ def build_serializer():
             attributes which should be used to build a new serializer
             (which itself would act as a field)
         :param custom_methods: Custom methods the serializer should use
-        :param base_class: The class the serializer should derive from
-        :return: A serializer class with the specified attributes
+        :param kwargs: Other kwargs (for custom field-like serializers)
+        :return: A serializer class with the specified attributes, and
+            the excess kwargs specified (if any)
         """
         # Initialize the attributes dictionary
         attributes = {'__qualname__': name}
@@ -91,9 +95,10 @@ def build_serializer():
                 if isinstance(field, dict):
                     # Build the meta-class
                     field['name'] = field.get('name', 'EmbeddedSerializer')
-                    EmbedSerializer = _serializer_factory(**field)
+                    field['base_class'] = field.get('base_class', EmbeddedModelSerializer)
+                    EmbedSerializer, field_kwargs = _serializer_factory(**field)
                     # Build a field instance which reflects the metaclass
-                    attributes[name] = EmbedSerializer()
+                    attributes[name] = EmbedSerializer(**field_kwargs)
                 elif isinstance(field, Field):
                     attributes[name] = field
                 else:
@@ -113,7 +118,7 @@ def build_serializer():
 
         Serializer = type(name, (base_class,), attributes)
 
-        return Serializer
+        return Serializer, kwargs
     return _serializer_factory
 
 
@@ -147,9 +152,18 @@ def does_a_subset_b():
         err_list = {}
         for key in dict1.keys():
             try:
-                if not (
-                        dict1[key] == dict2[key] or
-                        dict1[key] == str(dict2[key])
+                # If the value is a dictionary, run the comparision recursively
+                if isinstance(dict1[key], dict):
+                    print(dict1[key])
+                    try:
+                        _compare_data(dict1[key], dict2[key])
+                    except AssertionError as err:
+                        err_list[key] = err.args[0]
+                # Otherwise, compare the values directly,
+                # both as strings and literals
+                elif not (
+                    dict1[key] == dict2[key] or
+                    dict1[key] == str(dict2[key])
                 ):
                     err_list[key] = f"{dict1[key]} != {dict2[key]}"
             except KeyError:
@@ -192,10 +206,18 @@ def instance_matches_data():
                 if not hasattr(instance, field):
                     msg = f"Field `{field}` not found in model instance!"
                     err_list[field] = msg
-                if not getattr(instance, field).__eq__(data[field]):
-                    msg = (f"Field `{field}` has a value of " 
-                           f"'{getattr(instance, field)}', but a value of "
-                           f"'{data[field]}' was expected")
+                elif (data[field] is None and
+                      getattr(instance, field) is not None):
+                    # Special case for `None` expected
+                    # (The None type does not have and __eq__ function)
+                    msg = (f"Field `{field}` was expected to be "
+                           f"'{data[field]}', but was instead "
+                           f"'{getattr(instance, field)}'")
+                    err_list[field] = msg
+                elif not data[field].__eq__(getattr(instance, field)):
+                    msg = (f"Field `{field}` was expected to be " 
+                           f"'{data[field]}', but was instead "
+                           f"'{getattr(instance, field)}'")
                     err_list[field] = msg
             # Rarer error types
             except Exception as err:

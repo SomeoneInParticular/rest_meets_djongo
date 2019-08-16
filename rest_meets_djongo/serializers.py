@@ -135,9 +135,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
                 # For other embedded models, recursively build their fields too
                 if isinstance(field, EmbeddedModelSerializer):
-                    if instance is not None:
+                    embed_instance = None
+                    if instance:
                         field_obj = get_model_meta(instance).get_field(key)
                         embed_instance = field_obj.value_from_object(instance)
+                    if embed_instance:
                         obj_data[key] = field.update(embed_instance, val)
                     else:
                         obj_data[key] = field.create(val)
