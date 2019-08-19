@@ -6,9 +6,9 @@ fields to be generated, for use in Django-Rest-Framework apps
 ## Features
 **NOTE: This repo is currently under active development, and many of the
 features of the package may act in strange ways. Please report any issues 
-to 'https://gitlab.com/SomeoneInParticular/rest_meets_djongo/issues' or  
-'https://github.com/SomeoneInParticular/rest_meets_djongo/issues' as 
-you find them**
+to [GitLab](https://gitlab.com/SomeoneInParticular/rest_meets_djongo/issues) 
+or [GitHub](https://github.com/SomeoneInParticular/rest_meets_djongo/issues) 
+as you find them**
 
 Similar to DRF ModelSerializers, creating serializers using 
 DjongoModelSerializer allows for the following fields to be detected and 
