@@ -6,7 +6,8 @@ fields to be generated, for use in Django-Rest-Framework apps
 ## Features
 **NOTE: This repo is currently under active development, and many of the
 features of the package may act in strange ways. Please report any issues 
-to 'https://gitlab.com/SomeoneInParticular/rest_meets_djongo/issues' as 
+to 'https://gitlab.com/SomeoneInParticular/rest_meets_djongo/issues' or  
+'https://github.com/SomeoneInParticular/rest_meets_djongo/issues' as 
 you find them**
 
 Similar to DRF ModelSerializers, creating serializers using 
