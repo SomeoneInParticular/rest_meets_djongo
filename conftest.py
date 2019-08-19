@@ -154,7 +154,6 @@ def does_a_subset_b():
             try:
                 # If the value is a dictionary, run the comparision recursively
                 if isinstance(dict1[key], dict):
-                    print(dict1[key])
                     try:
                         _compare_data(dict1[key], dict2[key])
                     except AssertionError as err:

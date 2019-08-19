@@ -1,5 +1,7 @@
 from collections import OrderedDict
 
+from rest_framework.fields import CharField
+
 from rest_meets_djongo import fields as rmd_fields
 from rest_meets_djongo.serializers import \
     DjongoModelSerializer, EmbeddedModelSerializer
@@ -19,6 +21,7 @@ class TestMapping(object):
         serializer fields if not otherwise specified. Confirm that this
         created serializer, by default, allows null values
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = ContainerModel
@@ -31,6 +34,7 @@ class TestMapping(object):
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
+            'control_val': CharField(max_length=7, required=False),
             'embed_field': EmbeddedSerializer(allow_null=True, required=False)
         }
 
@@ -41,6 +45,7 @@ class TestMapping(object):
         Confirm that embedded models within embedded models are still
         mapped correctly by the serializer
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = DeepContainerModel
@@ -55,6 +60,7 @@ class TestMapping(object):
         expected_dict = {
             'str_id': ("CharField(max_length=10, "
                        "validators=[<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
+            'control_val': CharField(required=False, max_length=7),
             'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
@@ -65,6 +71,7 @@ class TestMapping(object):
         Confirm that serializers can handle user specified serializers
         for embedded models
         """
+
         class EmbedSerializer(EmbeddedModelSerializer):
             class Meta:
                 model = EmbedModel
@@ -79,7 +86,8 @@ class TestMapping(object):
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
-            'embed_field': EmbedSerializer()
+            'embed_field': EmbedSerializer(),
+            'control_val': CharField(max_length=7, required=False),
         }
 
         assert_dict_equals(TestSerializer().get_fields(), expected_dict)
@@ -89,6 +97,7 @@ class TestMapping(object):
         Confirm that embedded models can be ignored by not specifying
         them in the `fields` Meta parameter
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = ContainerModel
@@ -105,6 +114,7 @@ class TestMapping(object):
         Confirm that embedded models can be ignored by specifying them
         in the `exclude` Meta parameter
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = ContainerModel
@@ -112,6 +122,7 @@ class TestMapping(object):
 
         expected_dict = {
             '_id': rmd_fields.ObjectIdField(read_only=True),
+            'control_val': CharField(required=False, max_length=7)
         }
 
         assert_dict_equals(TestSerializer().get_fields(), expected_dict)
@@ -123,6 +134,7 @@ class TestMapping(object):
 
         In this case, these fields should be marked as `read_only` as well
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = DeepContainerModel
@@ -132,6 +144,7 @@ class TestMapping(object):
         expected_dict = {
             'str_id': ("CharField(max_length=10, "
                        "validators=[<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
+            'control_val': CharField(required=False, max_length=7),
             'deep_embed': ("EmbeddedModelField("
                            "model_field=<djongo.models.fields.EmbeddedModelField: deep_embed>, "
                            "read_only=True)")
@@ -145,6 +158,7 @@ class TestMapping(object):
         constructed after the designated number of levels designated by
         `depth` in the Meta of the original serializer.
         """
+
         class TestSerializer(DjongoModelSerializer):
             class Meta:
                 model = DeepContainerModel
@@ -161,6 +175,7 @@ class TestMapping(object):
         expected_dict = {
             'str_id': ("CharField(max_length=10, "
                        "validators=[<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
+            'control_val': CharField(required=False, max_length=7),
             'deep_embed': EmbeddedSerializer(allow_null=True, required=False)
         }
 
@@ -203,6 +218,28 @@ class TestEmbeddingIntegration(object):
 
         return data_tuple(**data)
 
+    @fixture
+    def deep_container_instance(self, container_instance):
+        from collections import namedtuple
+        deep_data = {
+            'str_id': 'identifier',
+            'deep_embed': container_instance.container
+        }
+
+        deep_instance = DeepContainerModel.objects.create(**deep_data)
+
+        data_tuple = namedtuple(
+            'ModelData', ['embedded', 'container', 'deep_container']
+        )
+
+        data = {
+            'embedded': container_instance.embedded,
+            'container': container_instance.container,
+            'deep_container': deep_instance
+        }
+
+        return data_tuple(**data)
+
     # -- Actual Test Code -- #
     @mark.parametrize(
         ["serializer", "expected", "missing"],
@@ -210,35 +247,37 @@ class TestEmbeddingIntegration(object):
             param(
                 # Generic test
                 {'target': ContainerModel},
-                {'embed_field': OrderedDict({
-                    'int_field': 1234, 'char_field': 'Embed'
-                })},
+                {'control_val': "CONTROL",
+                 'embed_field': OrderedDict({
+                    'int_field': 1234,
+                    'char_field': 'Embed'
+                 })},
                 None,
                 id='basic'
             ),
             param(
-                # Fields meta data is respected
+                # Fields meta, in the root model, is respected
                 {'target': ContainerModel,
-                 'meta_fields': ['embed_field'],
-                 'name': 'MetaFieldSerializer'},
+                 'meta_fields': ['embed_field']},
                 {'embed_field': OrderedDict({
-                    'int_field': 1234, 'char_field': 'Embed'
-                })},
-                None,
+                    'int_field': 1234,
+                    'char_field': 'Embed'
+                 })},
+                {'control_val': 'CONTROL'},
                 id='respects_fields'
             ),
             param(
-                # Exclude meta data is respected
+                # Exclude meta, in the root model, is respected
                 {'target': ContainerModel,
                  'meta_exclude': ['embed_field']},
-                None,
+                {'control_val': 'CONTROL'},
                 {'embed_field': OrderedDict({
                     'int_field': 1234, 'char_field': 'Embed'
                 })},
                 id='respects_exclude'
             ),
             param(
-                # Custom embedded field serializer (fields specified)
+                # Fields meta, in the contained model, is respected
                 {'target': ContainerModel, 'custom_fields': {
                     'embed_field': {
                         'target': EmbedModel,
@@ -246,15 +285,30 @@ class TestEmbeddingIntegration(object):
                         'meta_fields': ['int_field']
                     }
                 }},
-                {'embed_field': OrderedDict({'int_field': 1234})},
+                {'control_val': "CONTROL",
+                 'embed_field': OrderedDict({'int_field': 1234})},
                 {'embed_field': OrderedDict({'char_field': 'Embed'})},
                 id='respects_nested_fields'
+            ),
+            param(
+                # Exclude meta, in the contained model, is respected
+                {'target': ContainerModel, 'custom_fields': {
+                    'embed_field': {
+                        'target': EmbedModel,
+                        'base_class': EmbeddedModelSerializer,
+                        'meta_exclude': ['int_field']
+                    }
+                }},
+                {'control_val': "CONTROL",
+                 'embed_field': OrderedDict({'char_field': 'Embed'})},
+                {'embed_field': OrderedDict({'int_field': 1234})},
+                id='respects_nested_exclude'
             )
         ])
-    def test_retrieve(self, build_serializer, does_a_subset_b,
-                      container_instance, serializer, expected, missing):
+    def test_basic_retrieve(self, build_serializer, does_a_subset_b,
+                            container_instance, serializer, expected, missing):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(container_instance.container)
 
         # Make sure fields which should exist do
@@ -266,176 +320,855 @@ class TestEmbeddingIntegration(object):
             with raises(AssertionError):
                 does_a_subset_b(missing, serializer.data)
 
-    # def test_root_retrieve_historical(self, assert_dict_equals, container_instance):
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #             embed_depth = 0
-    #
-    #     serializer = TestSerializer(container_instance.container)
-    #
-    #     # Confirm that the data was correctly serialized
-    #     expect_data = {
-    #         '_id': container_instance.data['_id'],
-    #         'embed_field': dict(container_instance.data['embed_field'])
-    #     }
-    #
-    #     assert_dict_equals(serializer.data, expect_data)
-    #
-    # def test_deep_retrieve(self, assert_dict_equals, container_instance):
-    #     """
-    #     Confirm that existing instances of models with other embedded
-    #     models can be retrieved and serialized correctly
-    #     """
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #
-    #     serializer = TestSerializer(container_instance.instance)
-    #
-    #     # Confirm that the data was correctly serialized
-    #     assert_dict_equals(serializer.data, container_instance.data)
-    #
-    # def test_root_create(self, instance_matches_data, container_instance):
-    #     """
-    #     Confirm that fields at the embed depth are made read-only, and
-    #     remain as such without user overrides
-    #     """
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #             embed_depth = 0
-    #
-    #     # Serializer should validate
-    #     serializer = TestSerializer(data=container_instance.data)
-    #     assert serializer.is_valid(), serializer.errors
-    #
-    #     # Serializer should be able to save valid data correctly
-    #     instance = serializer.save()
-    #
-    #     expect_data = {
-    #         'embed_field': container_instance.instance.embed_field
-    #     }
-    #
-    #     instance_matches_data(instance, expect_data)
-    #
-    # def test_deep_create(self, instance_matches_data, container_instance):
-    #     """
-    #     Confirm that new instances of models with embedded models can
-    #     be generated and saved correctly from raw data
-    #     """
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #
-    #     # Serializer should validate
-    #     serializer = TestSerializer(data=container_instance.data)
-    #     assert serializer.is_valid(), serializer.errors
-    #
-    #     # Serializer should be able to save valid data correctly
-    #     instance = serializer.save()
-    #
-    #     expect_data = {
-    #         'embed_field': container_instance.instance.embed_field
-    #     }
-    #
-    #     instance_matches_data(instance, expect_data)
-    #
-    # def test_deep_update(self):
-    #     """
-    #     Confirm that existing instances of models with embedded models
-    #     can be updated when provided with new raw data
-    #     """
-    #     # Initial (to-be-updated) instance creation
-    #     initial_embed_data = {
-    #         'int_field': 1234,
-    #         'char_field': 'Embed'
-    #     }
-    #
-    #     embed_instance = EmbedModel(**initial_embed_data)
-    #
-    #     initial_data = {
-    #         'embed_field': embed_instance
-    #     }
-    #
-    #     instance = ContainerModel.objects.create(**initial_data)
-    #
-    #     initial_data.update({'pk': instance.pk})
-    #
-    #     # Try and perform a serializer based update
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #
-    #     new_embed_data = {
-    #         'char_field': 'abcde',
-    #         'int_field': 4321
-    #     }
-    #
-    #     new_data = {
-    #         'embed_field': new_embed_data
-    #     }
-    #
-    #     serializer = TestSerializer(instance, data=new_data)
-    #
-    #     # Confirm that the new data is valid
-    #     assert serializer.is_valid(), serializer.errors
-    #
-    #     # Confirm that the serializer saves this updated instance correctly
-    #     serializer.save()
-    #     assert instance.pk == initial_data['pk']
-    #     assert isinstance(instance.embed_field, EmbedModel)
-    #     assert instance.embed_field.int_field == new_embed_data['int_field']
-    #     assert instance.embed_field.char_field == new_embed_data['char_field']
-    #
-    # def test_deep_partial_update(self):
-    #     """
-    #     Confirm that existing instances of models with embedded models
-    #     can be updated when provided with new partial data
-    #     """
-    #     # Initial (to-be-updated) instance creation
-    #     initial_embed_data = {
-    #         'int_field': 1234,
-    #         'char_field': 'Embed'
-    #     }
-    #
-    #     embed_instance = EmbedModel(**initial_embed_data)
-    #
-    #     initial_data = {
-    #         'embed_field': embed_instance
-    #     }
-    #
-    #     instance = ContainerModel.objects.create(**initial_data)
-    #
-    #     initial_data.update({'pk': instance.pk})
-    #
-    #     # Attempt to perform a serializer based update
-    #     class TestSerializer(DjongoModelSerializer):
-    #         class Meta:
-    #             model = ContainerModel
-    #             fields = '__all__'
-    #
-    #     new_embed_data = {
-    #         'int_field': 4321
-    #     }
-    #
-    #     new_data = {
-    #         'embed_field': new_embed_data
-    #     }
-    #
-    #     serializer = TestSerializer(instance, data=new_data, partial=True)
-    #
-    #     # Confirm that the partial update data is valid
-    #     assert serializer.is_valid(), serializer.errors
-    #
-    #     # Confirm that the serializer saves this updated instance correctly
-    #     serializer.save()
-    #     assert instance.pk == initial_data['pk']
-    #     assert isinstance(instance.embed_field, EmbedModel)
-    #     assert instance.embed_field.int_field == new_embed_data['int_field']
-    #     assert instance.embed_field.char_field == initial_embed_data['char_field']
+    @mark.parametrize(
+        ["serializer", "expected", "missing"],
+        [
+            param(
+                # Generic test
+                {'target': DeepContainerModel},
+                {'control_val': "CONTROL",
+                 'deep_embed': OrderedDict({
+                    'control_val': "CONTROL",
+                    'embed_field': OrderedDict({
+                        'int_field': 1234,
+                        'char_field': "Embed"
+                    })
+                 })},
+                None,
+                id='basic'
+            ),
+            param(
+                # Fields meta, in the topmost model, is respected
+                {'target': DeepContainerModel,
+                 'meta_fields': ['deep_embed']},
+                {'deep_embed': OrderedDict({
+                    'control_val': "CONTROL",
+                    'embed_field': OrderedDict({
+                        'int_field': 1234,
+                        'char_field': "Embed"
+                    })
+                })},
+                {'control_val': "CONTROL"},
+                id='respects_root_fields'
+            ),
+            param(
+                # Exclude meta, in the topmost model, is respected
+                {'target': DeepContainerModel,
+                 'meta_exclude': ['deep_embed']},
+                {'control_val': "CONTROL"},
+                {'deep_embed': OrderedDict({
+                    'control_val': "CONTROL",
+                    'embed_field': OrderedDict({
+                        'int_field': 1234,
+                        'char_field': "Embed"
+                    })
+                })},
+                id='respects_root_exclude'
+            ),
+            param(
+                # Fields meta, in the intermediary model, is respected
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'meta_fields': ['embed_field']
+                     },
+                 }},
+                {'control_val': "CONTROL",
+                 'deep_embed': OrderedDict({
+                     'embed_field': OrderedDict({
+                         'int_field': 1234,
+                         'char_field': "Embed"
+                     })
+                 })},
+                {'deep_embed': OrderedDict({
+                     'control_val': "CONTROL"
+                 })},
+                id='respects_intermediary_fields'
+            ),
+            param(
+                # Exclude meta, in the intermediary model, is respected
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'meta_exclude': ['embed_field']
+                     },
+                 }},
+                {'deep_embed': OrderedDict({
+                    'control_val': "CONTROL"
+                })},
+                {'control_val': "CONTROL",
+                 'deep_embed': OrderedDict({
+                     'embed_field': OrderedDict({
+                         'int_field': 1234,
+                         'char_field': "Embed"
+                     })
+                 })},
+                id='respects_intermediary_exclude'
+            ),
+            param(
+                # Field meta, in the deepest model, is respected
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'custom_fields': {
+                             'embed_field': {
+                                 'target': EmbedModel,
+                                 'meta_fields': ['char_field']
+                             }
+                         }
+                     },
+                 }},
+                {'control_val': "CONTROL",
+                 'deep_embed': OrderedDict({
+                     'control_val': "CONTROL",
+                     'embed_field': OrderedDict({
+                         'char_field': "Embed"
+                     })
+                 })},
+                {'deep_embed': OrderedDict({
+                     'embed_field': OrderedDict({
+                         'int_field': 1234,
+                     })
+                })},
+                id='respects_deep_fields'
+            ),
+            param(
+                # Field meta, in the deepest model, is respected
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'custom_fields': {
+                             'embed_field': {
+                                 'target': EmbedModel,
+                                 'meta_exclude': ['char_field']
+                             }
+                         }
+                     },
+                 }},
+                {'control_val': "CONTROL",
+                 'deep_embed': OrderedDict({
+                     'control_val': "CONTROL",
+                     'embed_field': OrderedDict({
+                         'int_field': 1234,
+                     })
+                 })},
+                {'deep_embed': OrderedDict({
+                    'embed_field': OrderedDict({
+                        'char_field': "Embed",
+                    })
+                })},
+                id='respects_deep_exclude'
+            )
+        ])
+    def test_deep_retrieve(self, build_serializer, does_a_subset_b,
+                           deep_container_instance, serializer, expected,
+                           missing):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(deep_container_instance.deep_container)
+
+        # Make sure fields which should exist do
+        if expected:
+            does_a_subset_b(expected, serializer.data)
+
+        # Make sure fields which should be ignored are
+        if missing:
+            with raises(AssertionError):
+                does_a_subset_b(missing, serializer.data)
+
+    @mark.parametrize(
+        ["initial", "serializer", "expected"],
+        [
+            param(
+                # Basic test (Shallowly nested models)
+                {'embed_field': {
+                    'int_field': 1357,
+                    'char_field': "Bar"
+                }},
+                {'target': ContainerModel},
+                {'control_val': "CONTROL",
+                 'embed_field': EmbedModel(
+                    int_field=1357,
+                    char_field="Bar"
+                 )},
+                id='basic_root'
+            ),
+            param(
+                # Basic test (deeply nested models)
+                {'str_id': "identifier",
+                 'deep_embed': {
+                    'embed_field': {
+                        'int_field': 1357,
+                        'char_field': "Bar"
+                    }},
+                 },
+                {'target': DeepContainerModel},
+                {'str_id': "identifier",
+                 'control_val': "CONTROL",
+                 'deep_embed': ContainerModel(
+                    control_val="CONTROL",
+                    embed_field=EmbedModel(
+                        int_field=1357,
+                        char_field="Bar"
+                    ),
+                 )},
+                id='basic_deep'
+            ),
+            param(
+                # Custom fields are valid in the root model
+                {},
+                {'target': ContainerModel,
+                 'custom_fields': {
+                     'embed_field': {
+                         'target': EmbedModel,
+                         'required': False,
+                     }
+                 }},
+                {'control_val': "CONTROL"},
+                id='custom_field_root'
+            ),
+            param(
+                # Custom fields are valid (intermediary field)
+                {'str_id': "identifier"},
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'required': False,
+                         'default': {
+                             'embed_field': {
+                                 'int_field': 1357,
+                                 'char_field': "Bar"
+                             }
+                         }
+                     }
+                 }},
+                {'control_val': "CONTROL",
+                 'deep_embed': ContainerModel(
+                     control_val="CONTROL",
+                     embed_field=EmbedModel(
+                         int_field=1357,
+                         char_field="Bar"
+                     )
+                 )},
+                id='custom_field_intermediate'
+            ),
+            param(
+                # Custom fields are valid (deeply nested field)
+                {'str_id': 'identifier',
+                 'deep_embed': {
+                     'embed_field': {
+                         'int_field': 1357
+                     }},
+                 },
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'custom_fields': {
+                             'embed_field': {
+                                 'target': EmbedModel,
+                                 'custom_fields': {
+                                     'char_field': CharField(default="Foo")
+                                 }
+                             }
+                         }
+                     }
+                 }},
+                {'str_id': 'identifier',
+                 'deep_embed': ContainerModel(
+                     control_val="CONTROL",
+                     embed_field=EmbedModel(
+                         int_field=1357,
+                         char_field="Foo"
+                     ))
+                 },
+                id='custom_field_deep'
+            ),
+        ])
+    def test_valid_create(self, build_serializer, instance_matches_data,
+                          initial, serializer, expected):
+        # Test environment preparation
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(data=initial)
+
+        # Confirm that input data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Make sure the serializer can save the data
+        instance = serializer.save()
+
+        # Confirm that the data was saved correctly
+        instance_matches_data(instance, expected)
+
+    @mark.parametrize(
+        ["initial", "serializer", "error"],
+        [
+            param(
+                # Invalid values in the root model are caught
+                {'control_val': "WAY_TOO_LONG"},
+                {'target': ContainerModel},
+                AssertionError,
+                id='root_validation'
+            ),
+            param(
+                # Invalid values in the intermediary model are caught
+                {'deep_embed': {
+                    'control_val': "WAY_TOO_LONG"
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id='intermediate_validation'
+            ),
+            param(
+                # Invalid values in the deepest model are caught
+                {'deep_embed': {
+                    'control_val': {
+                        'int_val': 1357,
+                        'char_val': "TOO_LONG"
+                    }
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id='deep_validation'
+            ),
+            param(
+                # Missing values in the deepest model are caught
+                {'deep_embed': {
+                    'control_val': {
+                        'int_val': 1357,
+                    }
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id='deep_validation'
+            ),
+        ])
+    def test_invalid_create(self, build_serializer, instance_matches_data,
+                            initial, serializer, error):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(data=initial)
+
+        # Confirm that the serializer throws the designated error
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
+
+            serializer.save()
+
+    @mark.parametrize(
+        ["update", "serializer", "expected"],
+        [
+            param(
+                # Generic test
+                {'control_val': "NEW_VAL",
+                 'embed_field': {
+                    'int_field': 2468,
+                    'char_field': "Baz"
+                 }},
+                {'target': ContainerModel},
+                {'control_val': "NEW_VAL",
+                 'embed_field': EmbedModel(
+                    int_field=2468,
+                    char_field="Baz"
+                 )},
+                id='basic'
+            ),
+            param(
+                # Meta `fields` functions in root
+                {'control_val': "NEW_VAL"},
+                {'target': ContainerModel,
+                 'meta_fields': ['control_val']},
+                {'control_val': "NEW_VAL",
+                 'embed_field': EmbedModel(
+                     int_field=1234,
+                     char_field="Embed"
+                 )},
+                id='respects_root_fields'
+            ),
+            param(
+                # Meta `fields` functions in a nested model
+                {'control_val': "NEW_VAL",
+                 'embed_field': {
+                     'int_field': 1470
+                 }},
+                {'target': ContainerModel,
+                 'custom_fields': {
+                     'embed_field': {
+                         'target': EmbedModel,
+                         'meta_fields': ['int_field']
+                     }
+                 }},
+                {'control_val': "NEW_VAL",
+                 'embed_field': EmbedModel(
+                     int_field=1470,
+                     char_field="Embed"
+                 )},
+                id='respects_deep_fields'
+            ),
+            param(
+                # Meta `exclude` functions in root model
+                {'embed_field': {
+                    'int_field': 1369,
+                    'char_field': "Baz",
+                }},
+                {'target': ContainerModel,
+                 'meta_exclude': ['control_val']},
+                {'control_val': "CONTROL",
+                 'embed_field': EmbedModel(
+                     int_field=1369,
+                     char_field="Baz"
+                 )},
+                id='respects_root_exclude'
+            ),
+            param(
+                # Meta `exclude` functions in a nested model
+                {'control_val': "NEW_VAL",
+                 'embed_field': {
+                     'char_field': "Baz"
+                 }},
+                {'target': ContainerModel,
+                 'custom_fields': {
+                     'embed_field': {
+                         'target': EmbedModel,
+                         'meta_exclude': ['int_field']
+                     }
+                 }},
+                {'control_val': "NEW_VAL",
+                 'embed_field': EmbedModel(
+                     int_field=1234,
+                     char_field="Baz"
+                 )},
+                id='respects_deep_exclude'
+            ),
+        ])
+    def test_valid_basic_update(self, build_serializer, instance_matches_data,
+                                container_instance, update, serializer, expected):
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(container_instance.container, data=update)
+
+        # Confirm the serializer is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer can saved the data
+        instance = serializer.save()
+
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
+
+    @mark.parametrize(
+        ['update', 'serializer', 'error'],
+        [
+            param(
+                # Missing value caught in root model
+                {'embed_field': {
+                    'int_field': 1357,
+                    'char_field': "Bar"
+                 }},
+                {'target': ContainerModel,
+                 'custom_fields': {
+                     'control_val': CharField(required=True)
+                 }},
+                AssertionError,
+                id='missing_root_value'
+            ),
+            param(
+                # Missing value caught in deep model
+                {'embed_field': {
+                    'char_field': "Bar"
+                }},
+                {'target': ContainerModel},
+                AssertionError,
+                id='missing_deep_value'
+            ),
+            param(
+                # Invalid values in the root model are caught
+                {'control_val': "WAY_TOO_LONG",
+                 'embed_field': {
+                    'int_field': 1357,
+                    'char_field': "Bar"
+                 }},
+                {'target': ContainerModel},
+                AssertionError,
+                id='invalid_root_value'
+            ),
+            param(
+                # Invalid values in nested models are caught
+                {'embed_field': {
+                     'int_field': "Not_An_Int",
+                     'char_field': "Bar"
+                 }},
+                {'target': ContainerModel},
+                AssertionError,
+                id='invalid_deep_value'
+            ),
+        ])
+    def test_invalid_basic_update(self, build_serializer, instance_matches_data,
+                                  container_instance, update, serializer, error):
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(container_instance.container, data=update)
+
+        # Confirm that the serializer throws the designated error
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
+
+            serializer.save()
+
+    @mark.parametrize(
+        ["update", "serializer", "expected"],
+        [
+            param(
+                # Generic test
+                {'str_id': "new_id",
+                 'deep_embed': {
+                    'embed_field': {
+                        'int_field': 1357,
+                        'char_field': "Bar"
+                    }
+                 }},
+                {'target': DeepContainerModel},
+                {'str_id': "new_id",
+                 'deep_embed': ContainerModel(
+                    control_val="CONTROL",
+                    embed_field=EmbedModel(
+                        int_field=1357,
+                        char_field="Bar"
+                    )
+                 )},
+                id='basic'
+            ),
+            param(
+                # Intermediate `fields` respected
+                {'str_id': "new_id",
+                 'deep_embed': {
+                     'control_val': "NEW_VAL"
+                 }},
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'meta_fields': ['control_val']
+                     }
+                 }},
+                {'str_id': "new_id",
+                 'deep_embed': ContainerModel(
+                     control_val="NEW_VAL",
+                     embed_field=EmbedModel(
+                         int_field=1234,
+                         char_field="Embed"
+                     )
+                 )},
+                id='respects_intermediate_fields'
+            ),
+            param(
+                # Intermediate `exclude` respected
+                {'str_id': "new_id",
+                 'deep_embed': {
+                     'control_val': "NEW_VAL"
+                 }},
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'deep_embed': {
+                         'target': ContainerModel,
+                         'meta_exclude': ['embed_field']
+                     }
+                 }},
+                {'str_id': "new_id",
+                 'deep_embed': ContainerModel(
+                     control_val="NEW_VAL",
+                     embed_field=EmbedModel(
+                         int_field=1234,
+                         char_field="Embed"
+                     )
+                 )},
+                id='respects_intermediate_exclude'
+            ),
+        ])
+    def test_valid_deep_update(self, build_serializer, instance_matches_data,
+                               deep_container_instance, update, serializer,
+                               expected):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(deep_container_instance.deep_container,
+                                    data=update)
+
+        # Confirm that serializer data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer can save the data
+        instance = serializer.save()
+
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
+
+    @mark.parametrize(
+        ["update", "serializer", "error"],
+        [
+            param(
+                # Missing fields are caught (root field)
+                {'deep_embed': {
+                    'embed_field': {
+                        'int_field': 1357,
+                        'char_field': "Bar"
+                    }
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="root_missing"
+            ),
+            param(
+                # Missing fields are caught (intermediate field)
+                {'str_id': "identifier",
+                 'deep_embed': {
+                     'embed_field': {
+                         'int_field': 1357,
+                         'char_field': "Baz"
+                     }
+                 }},
+                {'target': DeepContainerModel,
+                 'custom_fields': {
+                     'control_val': CharField(required=True)
+                 }},
+                AssertionError,
+                id="intermediate_missing"
+            ),
+            param(
+                # Missing fields are caught (deep field)
+                {'str_id': "identifier",
+                 'deep_embed': {
+                     'embed_field': {
+                         'char_field': "Baz"
+                     }
+                 }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="deep_missing"
+            ),
+            param(
+                # Invalid fields are caught (root field)
+                {'str_id': "very_very_very_long",
+                 'deep_embed': {
+                     'embed_field': {
+                         'int_field': 1324,
+                         'char_field': "Baz"
+                     }
+                 }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="root_invalid"
+            ),
+            param(
+                # Invalid fields are caught (intermediate field)
+                {'str_id': "identifier",
+                 'deep_embed': {
+                     'embed_field': 1324
+                 }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="intermediate_invalid"
+            ),
+            param(
+                # Invalid fields are caught (deep field)
+                {'str_id': "intermediate",
+                 'deep_embed': {
+                     'embed_field': {
+                         'int_field': "Wrong",
+                         'char_field': "Baz"
+                     }
+                 }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="deep_invalid"
+            ),
+        ])
+    def test_invalid_update(self, build_serializer, instance_matches_data,
+                            deep_container_instance, update, serializer, error):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(deep_container_instance.deep_container,
+                                    data=update)
+
+        with raises(error):
+            # Confirm that serializer data is valid
+            assert serializer.is_valid(), serializer.errors
+
+            # Confirm that the serializer can save the data
+            serializer.save()
+
+    @mark.parametrize(
+        ["update", "serializer", "expected"],
+        [
+            param(
+                # Generic test (root fields)
+                {'embed_field': {
+                    'char_field': "Baz",
+                    'int_field': 1324
+                }},
+                {'target': ContainerModel},
+                {'control_val': "CONTROL",
+                 'embed_field': EmbedModel(
+                     int_field=1324,
+                     char_field="Baz"
+                 )},
+                id="basic_root"
+            ),
+            param(
+                # Generic test (deep fields)
+                {'embed_field': {
+                    'int_field': 1324
+                }},
+                {'target': ContainerModel},
+                {'control_val': "CONTROL",
+                 'embed_field': EmbedModel(
+                     int_field=1324,
+                     char_field='Embed'
+                 )},
+                id="basic_root"
+            ),
+        ])
+    def test_valid_basic_partial_update(self, build_serializer,
+                                        instance_matches_data,
+                                        container_instance,
+                                        update, serializer, expected):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(container_instance.container,
+                                    data=update, partial=True)
+
+        # Confirm that serializer data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer can save the data
+        instance = serializer.save()
+
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
+
+    @mark.parametrize(
+        ["update", "serializer", "expected"],
+        [
+            param(
+                # Generic test (root fields)
+                {'deep_embed': {
+                    'embed_field': {
+                        'char_field': "Baz",
+                        'int_field': 1324
+                    }
+                }},
+                {'target': DeepContainerModel},
+                {'control_val': "CONTROL",
+                 'deep_embed': ContainerModel(
+                     control_val="CONTROL",
+                     embed_field=EmbedModel(
+                         int_field=1324,
+                         char_field="Baz"
+                     )
+                 )},
+                id="basic_root"
+            ),
+            param(
+                # Generic test (intermediate fields)
+                {'deep_embed': {
+                    'control_val': "NEW_VAL"
+                }},
+                {'target': DeepContainerModel},
+                {'control_val': "CONTROL",
+                 'deep_embed': ContainerModel(
+                     control_val="NEW_VAL",
+                     embed_field=EmbedModel(
+                         int_field=1234,
+                         char_field='Embed'
+                     )
+                 )},
+                id="basic_intermediate"
+            ),
+            param(
+                # Generic test (intermediate fields)
+                {'deep_embed': {
+                    'embed_field': {
+                        'int_field': 1324
+                    }
+                }},
+                {'target': DeepContainerModel},
+                {'control_val': "CONTROL",
+                 'deep_embed': ContainerModel(
+                     control_val="CONTROL",
+                     embed_field=EmbedModel(
+                         int_field=1324,
+                         char_field='Embed'
+                     )
+                 )},
+                id="basic_deep"
+            ),
+        ])
+    def test_valid_deep_partial_update(self, build_serializer,
+                                        instance_matches_data,
+                                        deep_container_instance,
+                                        update, serializer, expected):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(deep_container_instance.deep_container,
+                                    data=update, partial=True)
+
+        # Confirm that serializer data is valid
+        assert serializer.is_valid(), serializer.errors
+
+        # Confirm that the serializer can save the data
+        instance = serializer.save()
+
+        # Confirm that the update went as planned
+        instance_matches_data(instance, expected)
+
+    @mark.parametrize(
+        ['update', 'serializer', 'error'],
+        [
+            param(
+                # Invalid fields are caught (root field)
+                {'str_id': "very_very_very_long"},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="root_invalid"
+            ),
+            param(
+                # Invalid fields are caught (intermediate field)
+                {'deep_embed': {
+                    'control_field': "NEW_VAL",
+                    'embed_field': 1324,
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="intermediate_invalid"
+            ),
+            param(
+                # Invalid fields are caught (deep field)
+                {'deep_embed': {
+                    'control_field': "NEW_VAL",
+                    'embed_field': {
+                        'int_field': "NOT_AN_INT",
+                        'char_field': "Foo"
+                    },
+                }},
+                {'target': DeepContainerModel},
+                AssertionError,
+                id="deep_invalid"
+            ),
+        ]
+    )
+    def test_invalid_partial_update(self, build_serializer,
+                                    instance_matches_data,
+                                    deep_container_instance,
+                                    update, serializer, error):
+        # Prepare the test environment
+        TestSerializer, _ = build_serializer(**serializer)
+        serializer = TestSerializer(deep_container_instance.deep_container,
+                                    data=update, partial=True)
+
+        with raises(error):
+            assert serializer.is_valid(), serializer.errors
+
+            # Confirm that the serializer can save the data
+            serializer.save()

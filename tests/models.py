@@ -83,18 +83,34 @@ class EmbedModel(models.Model):
 # Model for use w/ testing nested embedded models,
 class ContainerModel(models.Model):
     _id = models.ObjectIdField()
+    control_val = models.CharField(default='CONTROL', max_length=7)
     embed_field = models.EmbeddedModelField(model_container=EmbedModel,
                                             blank=True)
 
     objects = models.DjongoManager()
 
+    def __eq__(self, other):
+        # Only compare _id if both have one (neither are embedded)
+        _id_match = True
+        if self._id and other._id:
+            _id_match = (str(self._id) == str(other._id))
+
+        # Compare the other values to confirm they are identical
+        return(
+            _id_match and
+            self.control_val == other.control_val and
+            self.embed_field.__eq__(other.embed_field)
+        )
+
     def __str__(self):
-        return str(self._id) + "-(" + str(self.embed_field) + ")"
+        vals = [self.control_val, str(self.embed_field)]
+        return f"{str(self._id)}: {'|'.join(vals)}"
 
 
 # Model for testing w/ embedded models which contain embedded models
 class DeepContainerModel(models.Model):
     str_id = models.CharField(primary_key=True, max_length=10)
+    control_val = models.CharField(default='CONTROL', max_length=7)
     deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
 
     objects = models.DjongoManager()

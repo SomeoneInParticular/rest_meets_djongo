@@ -309,7 +309,7 @@ class TestIntegration(object):
                       prepped_db, serializer, expected, missing):
         """Confirm that the serializer correctly retrieves data"""
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(prepped_db.object_id)
 
         # Make sure fields which should exist do
@@ -333,9 +333,9 @@ class TestIntegration(object):
             param(
                 # Confirm that the user can override field functions
                 {'int_field': 55},
-                {'target': ObjIDModel, 'custom_fields': {
-                    'char_field':
-                        CharField(default='Bar', max_length=3)
+                {'target': ObjIDModel,
+                 'custom_fields': {
+                    'char_field': CharField(default='Bar', max_length=3)
                 }},
                 {'int_field': 55, 'char_field': 'Bar'},
                 id='user_override'
@@ -344,7 +344,7 @@ class TestIntegration(object):
     def test_valid_create(self, build_serializer, instance_matches_data,
                           initial, serializer, expected):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(data=initial)
 
         # Confirm that input data is valid
@@ -402,7 +402,7 @@ class TestIntegration(object):
     def test_invalid_create(self, build_serializer, instance_matches_data,
                             initial, serializer, error):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(data=initial)
 
         # Confirm that the serializer throws the designated error
@@ -424,7 +424,8 @@ class TestIntegration(object):
             param(
                 # Meta `fields` functions (allows pseudo-partial updates)
                 {'int_field': 45},
-                {'target': ObjIDModel, 'meta_fields': ['int_field']},
+                {'target': ObjIDModel,
+                 'meta_fields': ['int_field']},
                 {'int_field': 45, 'char_field': 'Foo'},
                 id='respects_fields'
             ),
@@ -448,7 +449,7 @@ class TestIntegration(object):
     def test_valid_update(self, build_serializer, instance_matches_data,
                           prepped_db, update, serializer, expected):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(prepped_db.object_id, data=update)
 
         # Confirm that serializer data is valid
@@ -488,7 +489,7 @@ class TestIntegration(object):
     def test_invalid_update(self, build_serializer, instance_matches_data,
                             prepped_db, update, serializer, error):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(prepped_db.object_id, data=update)
 
         # Confirm that the serializer throws the designated error
@@ -520,7 +521,7 @@ class TestIntegration(object):
     def test_valid_partial_update(self, build_serializer, instance_matches_data,
                                   prepped_db, update, serializer, expected):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(prepped_db.object_id, data=update,
                                     partial=True)
 
@@ -554,7 +555,7 @@ class TestIntegration(object):
     def test_invalid_partial_update(self, build_serializer, instance_matches_data,
                                     prepped_db, update, serializer, error):
         # Prepare the test environment
-        TestSerializer = build_serializer(**serializer)
+        TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(prepped_db.object_id, data=update,
                                     partial=True)
 

@@ -528,7 +528,7 @@ class TestIntegration(object):
 
         expected_data = {
             '_id': old_data['_id'],
-            'fk_field_id': None,
+            'fk_field_id': str(fk_tuple.instance.pk),
             'control_val': 'NEW CONTROL'
         }
 
