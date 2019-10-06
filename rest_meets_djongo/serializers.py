@@ -127,6 +127,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         Returns a dictionary of model data, for use w/ creating or
         updating instances of the target model
         """
+        # Validated data = None -> Embedded Model with blank=True.
+        # As such, just return None (effectively resetting the field)
+        if validated_data is None:
+            return None
+
         obj_data = {}
 
         for key, val in validated_data.items():
@@ -627,9 +632,16 @@ class EmbeddedModelSerializer(DjongoModelSerializer):
     def update(self, instance, validated_data):
         """
         Does not push the updated model to the database; the containing
-        instance will do this for us
+        instance will do this for us.
         """
         data = self.build_instance_data(validated_data, instance)
+
+        # If the validated data is None, the instance is being set to None
+        # This can occur when blank=True, and effectively resets the value
+        if data is None:
+            return None
+
+        # Otherwise the instance is being updated
         for key, val in data.items():
             setattr(instance, key, val)
 

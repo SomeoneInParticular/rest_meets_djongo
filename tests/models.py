@@ -145,10 +145,10 @@ class ForeignKeyRelatedModel(models.Model):
 # Model with representative types of relations
 class RelationContainerModel(models.Model):
     _id = models.ObjectIdField()
-    control_val = models.CharField(default='CONTROL', max_length=20)
+    control_val = models.CharField(default='CONTROL', max_length=10)
     fk_field = models.ForeignKey(to=ForeignKeyRelatedModel,
                                  on_delete=models.CASCADE)
-    mfk_field = models.ManyToManyField(to=ManyToManyRelatedModel,
+    mtm_field = models.ManyToManyField(to=ManyToManyRelatedModel,
                                        blank=True,
                                        related_name='container_field')
 

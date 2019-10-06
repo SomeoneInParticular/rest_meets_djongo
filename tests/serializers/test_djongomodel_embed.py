@@ -679,6 +679,15 @@ class TestEmbeddingIntegration(object):
                 id='basic'
             ),
             param(
+                # Values can be set to null after submission
+                {'control_val': "NEW_VAL",
+                 'embed_field': None},
+                {'target': ContainerModel},
+                {'control_val': "NEW_VAL",
+                 'embed_field': None},
+                id='null_set'
+            ),
+            param(
                 # Meta `fields` functions in root
                 {'control_val': "NEW_VAL"},
                 {'target': ContainerModel,
@@ -748,13 +757,14 @@ class TestEmbeddingIntegration(object):
         ])
     def test_valid_basic_update(self, build_serializer, instance_matches_data,
                                 container_instance, update, serializer, expected):
+        # Prepare the test environment
         TestSerializer, _ = build_serializer(**serializer)
         serializer = TestSerializer(container_instance.container, data=update)
 
         # Confirm the serializer is valid
         assert serializer.is_valid(), serializer.errors
 
-        # Confirm that the serializer can saved the data
+        # Confirm that the serializer can save the new data
         instance = serializer.save()
 
         # Confirm that the update went as planned

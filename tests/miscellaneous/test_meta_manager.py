@@ -168,13 +168,13 @@ class TestMetaManager(object):
         field_info = meta_manager.get_field_info(base_relation)
 
         # Confirm that the one-to-many relation was handled correctly
-        mfk_field_info = field_info.relations['mfk_field']
-        assert isinstance(mfk_field_info.model_field, djm_models.ManyToManyField)
-        assert mfk_field_info.related_model == reverse_relation.__class__
-        assert mfk_field_info.to_many
+        mtm_field_info = field_info.relations['mtm_field']
+        assert isinstance(mtm_field_info.model_field, djm_models.ManyToManyField)
+        assert mtm_field_info.related_model == reverse_relation.__class__
+        assert mtm_field_info.to_many
         # Many-to-Many fields lack a `to_field` parameter
-        assert not mfk_field_info.has_through_model
-        assert not mfk_field_info.reverse
+        assert not mtm_field_info.has_through_model
+        assert not mtm_field_info.reverse
 
     @mark.embed
     def test_get_embed_model_field_info(self, embed_container, embedded):

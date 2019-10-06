@@ -122,6 +122,51 @@ def build_serializer():
     return _serializer_factory
 
 
+@fixture(scope='session')
+def update_mono_relation():
+    # Prepares a dictionary with values contained in a DB instance
+    # One-to-many and one-to-one relations only
+    def _prep_dict(val_dict, fields, instance):
+        """
+        Update the designated fields with relation data, given key words
+        For the full instance, use "RAW", for the pk, use "PK"
+        :param val_dict: Data dictionary to be updated
+        :param fields: Fields to update
+        :param instance: Instance to pull data from
+        """
+        for field in fields:
+            if val_dict.get(field, False):
+                if val_dict[field] == 'PK':
+                    val_dict[field] = getattr(instance, field).pk
+                elif val_dict[field] == 'RAW':
+                    val_dict[field] = getattr(instance, field)
+
+    return _prep_dict
+
+
+@fixture(scope='session')
+def update_many_relation():
+    # Prepares a dictionary with values contained in a DB instance
+    # Many-to-many and Many-to-one relations only
+    def _prep_dict(val_dict: dict, fields: List[str], instance: Model):
+        """
+        Update the designated fields with relation data, given key words
+        For the full instance, use "RAW", for the pk, use "PK"
+        :param val_dict: Data dictionary to be updated
+        :param fields: Fields to update
+        :param instance: Instance to pull data from
+        """
+        for field in fields:
+            if val_dict.get(field, False):
+                if val_dict[field] == 'PK':
+                    instance_list = getattr(instance, field).all()
+                    val_dict[field] = [i.pk for i in instance_list]
+                elif val_dict[field] == 'RAW':
+                    val_dict[field] = list(getattr(instance, field).all())
+
+    return _prep_dict
+
+
 @mark.django_db
 @fixture(scope='session')
 def db_prep():
@@ -146,31 +191,77 @@ def db_prep():
 
 @fixture(scope='session')
 def does_a_subset_b():
-    """Compare two dictionaries to one another"""
-    def _compare_data(dict1, dict2):
-        """Slight tweak to allow input string representations to be used"""
-        err_list = {}
+    """Compare two dictionaries to see if the prior subsets the latter"""
+    def _compare_val(val1, val2):
+        """
+        Compares two values, with some additional logic to allow string
+        based comparision if requested
+        """
+        generic_error = f"`{val1}` != `{val2}`"
+
+        # If the subset is a dictionary, pass it back up to verify
+        if isinstance(val1, dict):
+            if isinstance(val2, dict):
+                _compare_dict(val1, val2)
+            else:
+                raise AssertionError(generic_error)
+        # If the subset value is a string, compare it to a string repr.
+        elif isinstance(val1, str):
+            assert val1 == str(val2)
+        # If the subset value is a list, check every element for equality
+        elif isinstance(val1, list):
+            _compare_list(val1, val2)
+        # For anything else, compare the values without string repr.
+        else:
+            assert val1 == val2
+
+    def _compare_list(list1: List, list2: List):
+        """
+        Compares two lists, allowing for string based comparision
+        """
+        err_dict = {}
+
+        if not isinstance(list2, list):
+            raise AssertionError(f"`{list1}` != `{list1}`")
+
+        for i in range(len(list1)):
+            try:
+                _compare_val(list1[i], list2[i])
+            except AssertionError as err:
+                err_dict[i] = err
+
+        if err_dict:
+            raise AssertionError(err_dict)
+
+    def _compare_dict(dict1: Dict, dict2: Dict):
+        """Compare two dictionaries, with string comparision allowed"""
+        # Raise an error if the compared dictionary is not a dictionary
+        if not isinstance(dict2, dict):
+            raise AssertionError(f"{dict1} != {dict2}")
+
+        # Otherwise, build a list of all differences in the dictionaries
+        err_dict = {}
+
         for key in dict1.keys():
             try:
                 # If the value is a dictionary, run the comparision recursively
                 if isinstance(dict1[key], dict):
-                    try:
-                        _compare_data(dict1[key], dict2[key])
-                    except AssertionError as err:
-                        err_list[key] = err.args[0]
+                    _compare_dict(dict1[key], dict2[key])
+                # If the value is a list, run the comparision for all elements
+                elif isinstance(dict1[key], list):
+                    _compare_list(dict1[key], dict2[key])
                 # Otherwise, compare the values directly,
                 # both as strings and literals
-                elif not (
-                    dict1[key] == dict2[key] or
-                    dict1[key] == str(dict2[key])
-                ):
-                    err_list[key] = f"{dict1[key]} != {dict2[key]}"
+                else:
+                    _compare_val(dict1[key], dict2[key])
+            except AssertionError as err:
+                err_dict[key] = err
             except KeyError:
-                err_list[key] = f"`{key}` missing in second dictionary"
-        if err_list:
-            raise AssertionError(err_list)
+                err_dict[key] = f"`{key}` missing in second dictionary"
+        if err_dict:
+            raise AssertionError(err_dict)
 
-    return _compare_data
+    return _compare_dict
 
 
 # -- Utility fixtures -- #
@@ -213,7 +304,10 @@ def instance_matches_data():
                            f"'{data[field]}', but was instead "
                            f"'{getattr(instance, field)}'")
                     err_list[field] = msg
-                elif not data[field].__eq__(getattr(instance, field)):
+                elif not (
+                    (data[field].__eq__(getattr(instance, field))) or
+                    (str(data[field]) == str(getattr(instance, field)))
+                ):
                     msg = (f"Field `{field}` was expected to be " 
                            f"'{data[field]}', but was instead "
                            f"'{getattr(instance, field)}'")
@@ -228,6 +322,7 @@ def instance_matches_data():
     return _does_instance_match_data
 
 
+# -- PyTest Configuration -- #
 def pytest_configure():
     from django.conf import settings
 
