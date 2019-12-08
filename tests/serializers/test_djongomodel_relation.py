@@ -191,7 +191,7 @@ class TestMapping(object):
 @mark.serializer
 @mark.django_db
 class TestIntegration(object):
-    # -- DB Setup Fixtures -- #
+    # -- Fixtures -- #
     @fixture
     def foreign_key_instance(self):
         """Prepares a default ForeignKeyRelatedModel instance in the DB"""
@@ -269,7 +269,7 @@ class TestIntegration(object):
 
         return container_instance
 
-    # -- Actual test code -- #
+    # -- Tests -- #
     @mark.parametrize(
         ["serializer", "expected", "missing"],
         [
@@ -345,7 +345,7 @@ class TestIntegration(object):
                 id='root_respects_exclude'
             ),
             param(
-                # Meta Fields respected, deep serialization
+                # Meta Exclude respected, deep serialization
                 {'target': RelationContainerModel,
                  'relate_depth': 1,
                  'meta_exclude': ['fk_field']},

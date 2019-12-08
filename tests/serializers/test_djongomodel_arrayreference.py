@@ -1,5 +1,4 @@
 from bson import ObjectId
-from collections import OrderedDict
 
 from django.test import TestCase
 from rest_framework import serializers as drf_ser
@@ -95,14 +94,14 @@ class TestIntegration(TestCase):
             '_id': str(instance._id),
             'int_val': instance.int_val,
             'arr_relation': [
-                OrderedDict({
+                {
                     '_id': str(rel_instance_1.pk),
                     'email': rel_instance_1.email
-                }),
-                OrderedDict({
+                },
+                {
                     '_id': str(rel_instance_2.pk),
                     'email': rel_instance_2.email
-                })
+                }
             ]
         }
 
@@ -263,14 +262,14 @@ class TestIntegration(TestCase):
             '_id': str(instance.pk),
             'int_val': instance.int_val,
             'arr_relation': [
-                OrderedDict({
+                {
                     '_id': str(rel_instance_1.pk),
                     'email': rel_instance_1.email
-                }),
-                OrderedDict({
+                },
+                {
                     '_id': str(rel_instance_2.pk),
                     'email': rel_instance_2.email
-                })],
+                }],
         }
 
         assert format_dict(serializer.data) == format_dict(expected_data)
@@ -398,14 +397,14 @@ class TestIntegration(TestCase):
             '_id': str(instance.pk),
             'int_val': '999',
             'arr_relation': [
-                OrderedDict({
+                {
                     '_id': str(rel_instance_1.pk),
                     'email': rel_instance_1.email,
-                }),
-                OrderedDict({
+                },
+                {
                     '_id': str(rel_instance_2.pk),
                     'email': rel_instance_2.email
-                })
+                }
             ]
         }
 
@@ -435,5 +434,3 @@ class TestIntegration(TestCase):
         assert serializer.is_valid(), serializer.errors
 
         instance = serializer.save()
-
-        print(instance)

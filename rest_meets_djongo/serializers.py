@@ -101,9 +101,11 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         dja_fields.GenericIPAddressField: drf_fields.IPAddressField,
         dja_fields.FilePathField: drf_fields.FilePathField,
         # REST-meets-Djongo field mappings (Djongo Derived)
-        djm_fields.ObjectIdField: ObjectIdField,
-        djm_fields.EmbeddedModelField: EmbeddedModelField,
         djm_fields.ArrayModelField: ArrayModelField,
+        djm_fields.EmbeddedModelField: EmbeddedModelField,
+        djm_fields.DictField: drf_fields.DictField,
+        djm_fields.ListField: drf_fields.ListField,
+        djm_fields.ObjectIdField: ObjectIdField,
     }
 
     # Class for creating fields for embedded models w/o a serializer
@@ -162,7 +164,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
                         embed_instance = field.child.create(datum)
                         obj_data[key].append(embed_instance)
 
-                # Other values, such as common datatypes
+                # Other values, such as common datatypes, assume the data is correct
                 else:
                     obj_data[key] = val
 
@@ -245,6 +247,10 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
 
         return ret
 
+    def to_representation(self, instance):
+        super_repr = super().to_representation(instance)
+        return dict(super_repr)
+
     def get_fields(self):
         """
         An override of DRF's `get_fields` to enable EmbeddedModelFields
@@ -297,7 +303,7 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         fields = {}
 
         for field_name in field_names:
-            # Fields explicitly declared should always be used
+            # Fields explicitly declared should use those declared settings
             if field_name in declared_fields:
                 fields[field_name] = declared_fields[field_name]
                 continue

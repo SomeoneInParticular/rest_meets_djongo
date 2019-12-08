@@ -16,6 +16,7 @@ from pytest import fixture, mark, param, raises
 
 @mark.basic
 @mark.core
+@mark.mapping
 @mark.serializer
 class TestMapping(object):
     def test_basic_mapping(self, assert_dict_equals):
