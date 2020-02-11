@@ -1,6 +1,6 @@
 -e .
 bson
-Django==2.2.9
+Django==2.2.10
 djongo==1.2.36
 djangorestframework<4
 py
