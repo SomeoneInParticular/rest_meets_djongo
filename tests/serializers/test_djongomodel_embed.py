@@ -146,7 +146,7 @@ class TestMapping(object):
                        "validators=[<UniqueValidator(queryset=DeepContainerModel.objects.all())>])"),
             'control_val': CharField(required=False, max_length=7),
             'deep_embed': ("EmbeddedModelField("
-                           "model_field=<djongo.models.fields.EmbeddedModelField: deep_embed>, "
+                           "model_field=<djongo.models.fields.EmbeddedField: deep_embed>, "
                            "read_only=True)")
         }
 

@@ -99,7 +99,7 @@ class EmbeddedModelField(serializers.Field):
     }
 
     def __init__(self, model_field, **kwargs):
-        if not isinstance(model_field, models.EmbeddedModelField):
+        if not isinstance(model_field, models.EmbeddedField):
             raise TypeError(
                 "Tried to initialize a RMD `EmbeddedModelField` with a "
                 "`{}` type model_field".format(
@@ -150,7 +150,7 @@ class ArrayModelField(serializers.Field):
     fields which do not have explicit serialization set up already
     """
     def __init__(self, model_field, **kwargs):
-        if not isinstance(model_field, models.ArrayModelField):
+        if not isinstance(model_field, models.ArrayField):
             raise TypeError(
                 "Tried to initialize a RMD `ArrayModelField` with a "
                 "`{}` type model_field".format(

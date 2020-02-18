@@ -107,7 +107,7 @@ def _build_generic_field_info(opts):
         elif hasattr(field, 'model_container'):
             embedded_fields[field.name] = EmbedInfo(
                 model_field=field,
-                is_array=isinstance(field, djm_fields.ArrayModelField)
+                is_array=isinstance(field, djm_fields.ArrayField)
             )
         # Other non-many-to-many fields
         else:

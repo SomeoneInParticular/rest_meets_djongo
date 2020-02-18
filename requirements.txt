@@ -1,6 +1,6 @@
 -e .
-Django==2.2.8
-djongo==1.2.36
+Django==2.2.10
+djongo==1.3.1
 djangorestframework<4
 py
 pymongo

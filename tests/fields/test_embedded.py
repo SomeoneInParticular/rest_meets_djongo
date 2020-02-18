@@ -61,4 +61,3 @@ class TestDataParsing(object):
 
         with error_raised:
             self.rmd_embed.run_validation(wrong_dict)
-

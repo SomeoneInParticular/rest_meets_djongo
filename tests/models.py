@@ -95,7 +95,7 @@ class EmbedModel(models.Model):
 class ContainerModel(models.Model):
     _id = models.ObjectIdField()
     control_val = models.CharField(default='CONTROL', max_length=7)
-    embed_field = models.EmbeddedModelField(model_container=EmbedModel,
+    embed_field = models.EmbeddedField(model_container=EmbedModel,
                                             blank=True)
 
     objects = models.DjongoManager()
@@ -122,7 +122,7 @@ class ContainerModel(models.Model):
 class DeepContainerModel(models.Model):
     str_id = models.CharField(primary_key=True, max_length=10)
     control_val = models.CharField(default='CONTROL', max_length=7)
-    deep_embed = models.EmbeddedModelField(model_container=ContainerModel)
+    deep_embed = models.EmbeddedField(model_container=ContainerModel)
 
     objects = models.DjongoManager()
 
@@ -130,7 +130,7 @@ class DeepContainerModel(models.Model):
 # Model for use w/ testing nested arrays of embedded models,
 class ArrayContainerModel(models.Model):
     _id = models.ObjectIdField()
-    embed_list = models.ArrayModelField(model_container=EmbedModel)
+    embed_list = models.ArrayField(model_container=EmbedModel)
 
     objects = models.DjongoManager()
 
@@ -184,4 +184,3 @@ class ArrayRelationModel(models.Model):
     )
 
     objects = models.DjongoManager()
-

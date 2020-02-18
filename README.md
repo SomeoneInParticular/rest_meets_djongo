@@ -15,8 +15,8 @@ DjongoModelSerializer allows for the following fields to be detected and
 automatically managed through DRF's serializer setup. These fields 
 include:
 * ObjectIDField
-* EmbeddedModelField
-* ArrayModelField
+* EmbeddedField
+* ArrayField
 
 The following are currently not fully functional, and as a result are 
 not explicitly supported (yet):
@@ -45,4 +45,4 @@ confirmed functional versions)
 1. Python 3.6 or higher
 2. MongoDB 4.0 or higher
 3. djangorestframework 3.9 or higher
-4. djongo 1.2 or higher
+4. djongo 1.3 or higher (use version 0.11 for djongo 1.2 versions)

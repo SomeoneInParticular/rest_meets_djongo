@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
 from rest_meets_djongo import __version__
 
@@ -16,7 +16,7 @@ setup(
     install_requires=[
         'Django<3',
         'djangorestframework<4',
-        'djongo<1.2.36',
+        'djongo>=1.3.0,<1.3.1',
     ],
 
     setup_requires=['pytest-runner'],

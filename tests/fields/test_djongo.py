@@ -77,4 +77,3 @@ class TestDataParsing(object):
         bad_string = "WAY TO LONG"
         with error_raised:
             self.char_field.run_validators(bad_string)
-
