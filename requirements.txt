@@ -1,8 +1,8 @@
 -e .
-bson
-Django==2.2.9
+Django==2.2.8
 djongo==1.2.36
 djangorestframework<4
 py
-pytest
-pytest-django
+pymongo
+pytest==5.3.1
+pytest-django==3.6.0
