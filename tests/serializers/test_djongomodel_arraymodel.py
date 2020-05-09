@@ -5,7 +5,7 @@ from pytest import mark
 from rest_meets_djongo import serializers as rmd_ser
 
 from tests.models import ArrayContainerModel, EmbedModel
-from tests.utils import build_error_dict
+from tests.utils import build_error_dict, format_dict
 
 
 @mark.django_db
@@ -42,12 +42,15 @@ class TestIntegration(object):
         expected_data = {
             '_id': str(instance._id),
             'embed_list': [
-                OrderedDict(embed_data_1),
-                OrderedDict(embed_data_2)
+                embed_data_1,
+                embed_data_2
             ]
         }
 
-        self.assertDictEqual(expected_data, serializer.data)
+        expected_str = format_dict(expected_data)
+        observed_str = format_dict(serializer.data)
+
+        assert expected_str == observed_str
 
     def test_create(self):
         """

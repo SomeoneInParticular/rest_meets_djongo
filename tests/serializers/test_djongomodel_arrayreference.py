@@ -56,7 +56,10 @@ class TestIntegration(object):
             ]
         }
 
-        self.assertDictEqual(expected_data, serializer.data)
+        expected_str = format_dict(expected_data)
+        observed_str = format_dict(serializer.data)
+
+        assert expected_str == observed_str
 
     def test_deep_retrieve(self):
         """
