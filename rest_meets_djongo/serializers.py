@@ -103,8 +103,6 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
         # REST-meets-Djongo field mappings (Djongo Derived)
         djm_fields.ArrayField: ArrayModelField,
         djm_fields.EmbeddedField: EmbeddedModelField,
-        djm_fields.DictField: drf_fields.DictField,
-        djm_fields.ListField: drf_fields.ListField,
         djm_fields.ObjectIdField: ObjectIdField,
     }
 

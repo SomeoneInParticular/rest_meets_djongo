@@ -60,17 +60,6 @@ class OptionsModel(models.Model):
     objects = models.DjongoManager()
 
 
-# --- Compound Field Containing Models --- #
-class ListModel(models.Model):
-    char_field = models.CharField(max_length=16)
-    list_field = models.ListField()
-
-
-class DictModel(models.Model):
-    int_field = models.IntegerField()
-    dict_field = models.DictField()
-
-
 # --- Embedded Model Containing Models --- #
 # Model for use w/ testing embedded models
 class EmbedModel(models.Model):
@@ -96,7 +85,7 @@ class ContainerModel(models.Model):
     _id = models.ObjectIdField()
     control_val = models.CharField(default='CONTROL', max_length=7)
     embed_field = models.EmbeddedField(model_container=EmbedModel,
-                                            blank=True)
+                                       blank=True)
 
     objects = models.DjongoManager()
 

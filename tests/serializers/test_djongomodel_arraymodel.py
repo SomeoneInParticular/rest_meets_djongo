@@ -1,7 +1,6 @@
-from bson import ObjectId
 from collections import OrderedDict
 
-from django.test import TestCase
+from pytest import mark
 
 from rest_meets_djongo import serializers as rmd_ser
 
@@ -9,7 +8,8 @@ from tests.models import ArrayContainerModel, EmbedModel
 from tests.utils import build_error_dict
 
 
-class TestIntegration(TestCase):
+@mark.django_db
+class TestIntegration(object):
     def test_retrieve(self):
         """
         Confirm that existing instances of models w/ ArrayModelFields can

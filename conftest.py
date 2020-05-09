@@ -3,7 +3,6 @@ from typing import Callable, List, Dict, Type, Union
 from django.db.models import Model
 from rest_framework.serializers import ModelSerializer
 from rest_framework.serializers import Field
-
 from rest_meets_djongo.serializers import \
     DjongoModelSerializer, EmbeddedModelSerializer
 

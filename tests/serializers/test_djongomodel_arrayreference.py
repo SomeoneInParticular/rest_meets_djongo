@@ -1,6 +1,6 @@
 from bson import ObjectId
 
-from django.test import TestCase
+from pytest import mark
 from rest_framework import serializers as drf_ser
 
 from rest_meets_djongo import serializers as rmd_ser
@@ -9,7 +9,8 @@ from tests.models import ArrayRelatedModel, ArrayRelationModel
 from tests.utils import format_dict
 
 
-class TestIntegration(TestCase):
+@mark.django_db
+class TestIntegration(object):
     def test_root_retrieve(self):
         """
         Confirm that existing instances of models w/ ArrayModelFields can
