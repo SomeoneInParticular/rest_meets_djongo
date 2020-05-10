@@ -124,6 +124,13 @@ class ArrayContainerModel(models.Model):
     objects = models.DjongoManager()
 
 
+class NullArrayContainerModel(models.Model):
+    _id = models.ObjectIdField()
+    nullable_list = models.ArrayField(model_container=EmbedModel, blank=True, null=True)
+
+    objects = models.DjongoManager()
+
+
 # --- Relation Containing Models --- #
 # Model related to by RelationContainerModel
 class ManyToManyRelatedModel(models.Model):

@@ -138,8 +138,12 @@ class DjongoModelSerializer(drf_ser.ModelSerializer):
             try:
                 field = self.fields[key]
 
+                # Special case; null values can be None, regardless of type
+                if val is None and field.allow_null:
+                    obj_data[key] = None
+
                 # For other embedded models, recursively build their fields too
-                if isinstance(field, EmbeddedModelSerializer):
+                elif isinstance(field, EmbeddedModelSerializer):
                     embed_instance = None
                     if instance:
                         field_obj = get_model_meta(instance).get_field(key)
