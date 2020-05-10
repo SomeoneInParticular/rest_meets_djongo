@@ -20,11 +20,15 @@ include:
 
 The following are currently not fully functional, and as a result are 
 not explicitly supported (yet):
+* ArrayReferenceField (WIP)
+
+Some fields are not currently supported fully within Djongo, and as 
+such are not supported by this package either (though they will work
+to an extent nonetheless):
 * ForeignKeyField (Reverse relations are not generated, even if specified, 
 by Djongo)
 * ManyToManyField (Reverse relations are not generated, even if specified, 
 by Djongo)
-* ArrayReferenceField (WIP)
 
 ## Installation
 <ol><li>
