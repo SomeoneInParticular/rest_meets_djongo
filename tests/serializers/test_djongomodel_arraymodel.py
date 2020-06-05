@@ -160,8 +160,7 @@ class TestIntegration(object):
 
     def test_null_create_filled(self):
         """
-        Confirm that new instances of models w/ ArrayModelFields fields
-        can still be generated and saved correctly from raw data
+        Confirm null fields do not interfere with creation
         """
         # Set up data to use for creation
         class TestSerializer(rmd_ser.DjongoModelSerializer):
@@ -199,8 +198,7 @@ class TestIntegration(object):
 
     def test_null_create_empty(self):
         """
-        Confirm that new instances of models w/ ArrayModelFields fields
-        can still be generated and saved correctly from raw data
+        Confirm that objects can be created with null values
         """
         # Set up data to use for creation
         class TestSerializer(rmd_ser.DjongoModelSerializer):
@@ -276,8 +274,7 @@ class TestIntegration(object):
 
     def test_null_update_filled(self):
         """
-        Confirm that existing instances of models w/ ArrayModelFields
-        can still be updated when provided with new raw data
+        Confirm that null fields do not impede updates
         """
         # Set up the initial data
         embed_data_1 = {
@@ -331,8 +328,7 @@ class TestIntegration(object):
 
     def test_null_update_empty(self):
         """
-        Confirm that existing instances of models w/ ArrayModelFields
-        can still be updated when provided with new raw data
+        Confirm that null values can be used to update
         """
         # Set up the initial data
         embed_data_1 = {
@@ -433,3 +429,32 @@ class TestIntegration(object):
 
         # Only the three errors we created should be caught
         assert len(err_dict['embed_list']) == 2
+
+    def test_non_list_field_caught(self):
+        """
+        Check that single values passed into list fields are caught
+        """
+        # Set up data to use for creation
+        class TestSerializer(rmd_ser.DjongoModelSerializer):
+            class Meta:
+                model = ArrayContainerModel
+                fields = '__all__'
+
+        embed_data_1 = {
+            'int_field': 123,
+            'char_field': 'foo'
+        }
+
+        embed_obj = EmbedModel(**embed_data_1)
+
+        data = {
+            'embed_list': embed_obj
+        }
+
+        # Serializer should NOT validate correctly
+        serializer = TestSerializer(data=data)
+        assert not serializer.is_valid()
+
+        # Confirm that the errors caught are correct
+        print(serializer.errors)
+
