@@ -3,6 +3,8 @@ rest-meets-djongo
 This package enables default model serializers for models with Djongo 
 fields to be generated, for use in Django-Rest-Framework apps
 
+**_THIS REPOSITORY IS NOW DEFUNCT. YOU ARE FREE TO USE THE CODE HEREIN FOR YOUR PURPOUSES, BUT IT WILL NO LONGER BE UPDATED. YOU ARE ALSO WELCOME TO FORK THE CODE FOR YOUR OWN PURPOSES._**
+
 ## Features
 **NOTE: This repo is currently under active development, and many of the
 features of the package may act in strange ways. Please report any issues 
